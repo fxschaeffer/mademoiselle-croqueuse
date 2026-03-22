@@ -70,7 +70,7 @@
   #hud {
     display: flex;
     justify-content: space-between;
-    width: 560px;
+    width: 672px;
     padding: 8px 0;
     font-size: 16px;
   }
@@ -109,14 +109,14 @@
   <div>Niveau: <span id="level">1</span></div>
   <div class="lives">Vies: <span id="lives"></span></div>
 </div>
-<canvas id="game" width="560" height="620"></canvas>
+<canvas id="game" width="672" height="744"></canvas>
 <div id="message" id="msg"></div>
 <div id="controls">Fleches / ZQSD / Manette pour bouger &bull; ESPACE / A pour commencer &bull; R / B pour recommencer &bull; M / Select pour mute</div>
 
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const TILE = 20;
+const TILE = 24;
 const COLS = 28;
 const ROWS = 31;
 
@@ -460,16 +460,6 @@ function getGhostTarget(ghost, idx) {
 
 function moveGhost(ghost, idx) {
   if (ghost.inHouse) {
-    ghost.exitTimer -= BASE_SPEED;
-    if (ghost.exitTimer <= 0) {
-      ghost.x = 14;
-      ghost.y = 11;
-      ghost.prevX = 14;
-      ghost.prevY = 11;
-      ghost.lerpT = 1;
-      ghost.inHouse = false;
-      ghost.dir = 0;
-    }
     return;
   }
 
@@ -614,7 +604,17 @@ function update(dt) {
   // Move ghosts with interpolation for smooth movement
   const ghostInterval = Math.max(1, 3 - Math.floor(level / 2));
   ghosts.forEach((g, i) => {
-    if (g.inHouse) return;
+    if (g.inHouse) {
+      // Decrement exit timer for ghosts waiting in the house
+      g.exitTimer -= BASE_SPEED;
+      if (g.exitTimer <= 0) {
+        g.x = 14; g.y = 11;
+        g.prevX = 14; g.prevY = 11; g.lerpT = 1;
+        g.inHouse = false;
+        g.dir = 0;
+      }
+      return;
+    }
     g.lerpT += 1 / ghostInterval;
     if (g.lerpT >= 1) {
       g.lerpT = 0;
