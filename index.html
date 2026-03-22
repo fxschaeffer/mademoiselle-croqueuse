@@ -5,6 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
 <title>Mademoiselle Croqueuse - Arcade</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyDi2bVeVK_Q_jRFIRiCKfqao0gT3oQOP0M",
+  authDomain: "mademoiselle-croqueuse.firebaseapp.com",
+  databaseURL: "https://mademoiselle-croqueuse-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "mademoiselle-croqueuse",
+  storageBucket: "mademoiselle-croqueuse.firebasestorage.app",
+  messagingSenderId: "1014156721559",
+  appId: "1:1014156721559:web:4de88fd80a86a29a0318d2"
+});
+const db = firebase.database();
+</script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -103,6 +117,69 @@
     color: #666;
     text-align: center;
   }
+  #initialsOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 998;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Courier New', monospace;
+  }
+  #initialsOverlay.show { display: flex; }
+  #initialsOverlay h2 {
+    color: #0ff;
+    font-size: 24px;
+    text-shadow: 0 0 8px #0ff;
+    margin-bottom: 10px;
+  }
+  #initialsOverlay .score-display {
+    color: #ffd700;
+    font-size: 32px;
+    margin-bottom: 20px;
+  }
+  #initialsOverlay input {
+    background: #222;
+    border: 2px solid #0ff;
+    border-radius: 8px;
+    color: #0ff;
+    font-family: 'Courier New', monospace;
+    font-size: 36px;
+    padding: 10px;
+    text-align: center;
+    outline: none;
+    width: 120px;
+    text-transform: uppercase;
+    letter-spacing: 8px;
+  }
+  #initialsOverlay .hint {
+    color: #666;
+    font-size: 13px;
+    margin-top: 10px;
+  }
+  #leaderboard {
+    margin-top: 15px;
+    text-align: center;
+  }
+  #leaderboard h3 {
+    color: #0ff;
+    font-size: 16px;
+    text-shadow: 0 0 8px #0ff;
+    margin-bottom: 8px;
+  }
+  #leaderboard table {
+    margin: 0 auto;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  #leaderboard td {
+    padding: 2px 12px;
+    color: #0ff;
+  }
+  #leaderboard td:first-child { color: #ffd700; }
+  #leaderboard td:last-child { color: #ffd700; }
 </style>
 </head>
 <body>
@@ -121,7 +198,15 @@
 </div>
 <canvas id="game" width="672" height="744"></canvas>
 <div id="message" id="msg"></div>
+<div id="leaderboard"><h3>🏆 TOP 10</h3><div id="leaderboardTable"></div></div>
 <div id="controls">Fleches / ZQSD / Manette pour bouger &bull; ESPACE / A pour commencer &bull; R / B pour recommencer &bull; M pour mute &bull; T pour changer la musique</div>
+
+<div id="initialsOverlay">
+  <h2>NOUVEAU HIGH SCORE !</h2>
+  <div class="score-display" id="finalScore"></div>
+  <input type="text" id="initialsInput" maxlength="3" placeholder="AAA" autofocus>
+  <div class="hint">Entre tes initiales (3 lettres) + Entree</div>
+</div>
 
 <script>
 const canvas = document.getElementById('game');
@@ -799,6 +884,7 @@ function update(dt) {
           setTimeout(() => {
             gameState = 'gameover';
             setMessage('GAME OVER ! Appuyez sur R pour recommencer');
+            showInitialsPrompt(score);
           }, 2000);
         } else {
           gameState = 'dying';
@@ -1799,6 +1885,67 @@ requestAnimationFrame((time) => {
   lastTime = time;
   gameLoop(time);
 });
+
+// ========== LEADERBOARD (Firebase) ==========
+function loadLeaderboard() {
+  db.ref('highscores').orderByChild('score').limitToLast(10).on('value', (snap) => {
+    const entries = [];
+    snap.forEach(child => { entries.push(child.val()); });
+    entries.sort((a, b) => b.score - a.score);
+    const table = document.getElementById('leaderboardTable');
+    if (entries.length === 0) {
+      table.innerHTML = '<p style="color:#666;font-size:12px">Pas encore de scores</p>';
+      return;
+    }
+    let html = '<table>';
+    entries.forEach((e, i) => {
+      html += `<tr><td>${i + 1}.</td><td>${e.name}</td><td>${e.score}</td></tr>`;
+    });
+    html += '</table>';
+    table.innerHTML = html;
+  });
+}
+
+function showInitialsPrompt(finalScore) {
+  const overlay = document.getElementById('initialsOverlay');
+  const input = document.getElementById('initialsInput');
+  document.getElementById('finalScore').textContent = finalScore;
+  overlay.classList.add('show');
+  input.value = '';
+  input.focus();
+
+  function submit() {
+    const name = input.value.toUpperCase().replace(/[^A-Z]/g, '').substring(0, 3);
+    if (name.length < 1) return;
+    // Save to Firebase
+    db.ref('highscores').push({
+      name: name || 'AAA',
+      score: finalScore,
+      date: Date.now(),
+      level: level
+    });
+    overlay.classList.remove('show');
+    input.removeEventListener('keydown', onKey);
+    loadLeaderboard();
+  }
+
+  function onKey(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      submit();
+    }
+    if (e.key === 'Escape') {
+      overlay.classList.remove('show');
+      input.removeEventListener('keydown', onKey);
+    }
+  }
+  input.addEventListener('keydown', onKey);
+}
+
+// Load leaderboard on start
+loadLeaderboard();
+
 </script>
 </div>
 <script>
