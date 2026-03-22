@@ -512,6 +512,7 @@ const GHOST_COLORS = ['#000', '#ffdd00', '#ff0000', '#ffdd00']; // base fallback
 const BELGIUM = ['#000000', '#ffdd00', '#ff0000'];
 // Stripe modes: 0=horizontal, 1=diagonal /, 2=diagonal \, 3=vertical
 const GHOST_STRIPE_MODE = [0, 1, 2, 3];
+const GHOST_NAMES = ['Diknek', 'Chicki', 'Tintin', 'Lambic'];
 const GHOST_NAMES = ['Ombre', 'Rosee', 'Azur', 'Ambre'];
 
 function initGhosts() {
@@ -1218,6 +1219,48 @@ function drawGhost(g, ghostIdx) {
     ctx.arc(px - 4 + dx, py - 3 + dy, 2, 0, Math.PI * 2);
     ctx.arc(px + 4 + dx, py - 3 + dy, 2, 0, Math.PI * 2);
     ctx.fill();
+
+    // Distinctive features per ghost
+    if (ghostIdx === 0) {
+      // Diknek: angry thick eyebrows
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px - 7, py - 7); ctx.lineTo(px - 2, py - 5.5);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(px + 7, py - 7); ctx.lineTo(px + 2, py - 5.5);
+      ctx.stroke();
+    } else if (ghostIdx === 1) {
+      // Chicki: eyelashes (cute)
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      // Left eye lashes
+      ctx.beginPath(); ctx.moveTo(px - 6, py - 7); ctx.lineTo(px - 6, py - 9); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px - 4, py - 7.5); ctx.lineTo(px - 4, py - 9.5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px - 2, py - 7); ctx.lineTo(px - 2, py - 9); ctx.stroke();
+      // Right eye lashes
+      ctx.beginPath(); ctx.moveTo(px + 2, py - 7); ctx.lineTo(px + 2, py - 9); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px + 4, py - 7.5); ctx.lineTo(px + 4, py - 9.5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px + 6, py - 7); ctx.lineTo(px + 6, py - 9); ctx.stroke();
+    } else if (ghostIdx === 2) {
+      // Tintin: orange quiff (houppe)
+      ctx.fillStyle = '#ff8833';
+      ctx.beginPath();
+      ctx.moveTo(px - 1, py - r - 1);
+      ctx.quadraticCurveTo(px + 2, py - r - 8, px + 5, py - r - 6);
+      ctx.quadraticCurveTo(px + 3, py - r - 3, px + 1, py - r - 1);
+      ctx.fill();
+    } else if (ghostIdx === 3) {
+      // Lambic: sleepy half-closed eyelids
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(px - 4, py - 5, 4, 2.5, 0, Math.PI, 0);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(px + 4, py - 5, 4, 2.5, 0, Math.PI, 0);
+      ctx.fill();
+    }
   }
 }
 
@@ -1380,7 +1423,7 @@ function drawStartScreen() {
   ctx.arc(cx - 6, 302, 5, 0, Math.PI * 2);
   ctx.fill();
 
-  // Ghosts preview with Belgian stripes
+  // Ghosts preview with Belgian stripes + distinctive features
   GHOST_COLORS.forEach((color, i) => {
     const gx = cx - 60 + i * 40;
     const gr = 12;
@@ -1400,6 +1443,36 @@ function drawStartScreen() {
     ctx.arc(gx - 3, 397, 1.5, 0, Math.PI * 2);
     ctx.arc(gx + 5, 397, 1.5, 0, Math.PI * 2);
     ctx.fill();
+    // Distinctive features
+    if (i === 0) { // Diknek: angry eyebrows
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(gx - 7, 392); ctx.lineTo(gx - 2, 394); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(gx + 7, 392); ctx.lineTo(gx + 2, 394); ctx.stroke();
+    } else if (i === 1) { // Chicki: eyelashes
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(gx - 5, 393); ctx.lineTo(gx - 5, 391); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(gx - 3, 392.5); ctx.lineTo(gx - 3, 390.5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(gx + 3, 392.5); ctx.lineTo(gx + 3, 390.5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(gx + 5, 393); ctx.lineTo(gx + 5, 391); ctx.stroke();
+    } else if (i === 2) { // Tintin: orange quiff
+      ctx.fillStyle = '#ff8833';
+      ctx.beginPath();
+      ctx.moveTo(gx - 1, 400 - gr - 1);
+      ctx.quadraticCurveTo(gx + 2, 400 - gr - 7, gx + 5, 400 - gr - 5);
+      ctx.quadraticCurveTo(gx + 3, 400 - gr - 2, gx + 1, 400 - gr - 1);
+      ctx.fill();
+    } else if (i === 3) { // Lambic: sleepy eyelids
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.ellipse(gx - 4, 395, 3.5, 2, 0, Math.PI, 0); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(gx + 4, 395, 3.5, 2, 0, Math.PI, 0); ctx.fill();
+    }
+    // Ghost name below
+    ctx.fillStyle = '#0ff';
+    ctx.shadowColor = '#0ff'; ctx.shadowBlur = 4;
+    ctx.font = '9px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText(GHOST_NAMES[i], gx, 420);
+    ctx.shadowBlur = 0;
   });
 
   ctx.fillStyle = '#0ff';
