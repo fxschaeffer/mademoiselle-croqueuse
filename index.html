@@ -566,8 +566,13 @@ function startGame() {
   resetMap();
   player = initPlayer();
   ghosts = initGhosts();
-  gameState = 'playing';
+  gameState = 'jingle';
   updateHUD();
+  setMessage('PRET !');
+  playStartJingle(() => {
+    setMessage('');
+    gameState = 'playing';
+  });
 }
 
 function resetAfterDeath() {
@@ -586,6 +591,13 @@ function nextLevel() {
   player = initPlayer();
   ghosts = initGhosts();
   frightTimer = 0;
+  gameState = 'jingle';
+  updateHUD();
+  setMessage('NIVEAU ' + level);
+  playStartJingle(() => {
+    setMessage('');
+    gameState = 'playing';
+  });
 }
 
 function updateHUD() {
@@ -770,6 +782,7 @@ function update(dt) {
     map[player.y][player.x] = 0;
     score += 10;
     dotCount--;
+    if (!musicMuted) playWakaSound();
   } else if (tile === 3) {
     map[player.y][player.x] = 0;
     score += 50;
@@ -1417,6 +1430,57 @@ function playDeathSound() {
       osc.stop(t + 0.18);
     }
   } catch(e) {}
+}
+
+// Waka waka sound for eating dots
+let wakaCtx, wakaToggle = false;
+function playWakaSound() {
+  try {
+    if (!wakaCtx) wakaCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = wakaCtx.createOscillator();
+    const gain = wakaCtx.createGain();
+    osc.type = 'triangle';
+    const freq = wakaToggle ? 220 : 260;
+    wakaToggle = !wakaToggle;
+    osc.frequency.setValueAtTime(freq, wakaCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.7, wakaCtx.currentTime + 0.06);
+    gain.gain.setValueAtTime(0.08, wakaCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, wakaCtx.currentTime + 0.07);
+    osc.connect(gain);
+    gain.connect(wakaCtx.destination);
+    osc.start();
+    osc.stop(wakaCtx.currentTime + 0.07);
+  } catch(e) {}
+}
+
+// Level start jingle
+function playStartJingle(callback) {
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [
+      {f: 523, t: 0, d: 0.12},     // C5
+      {f: 659, t: 0.15, d: 0.12},   // E5
+      {f: 784, t: 0.30, d: 0.12},   // G5
+      {f: 1047, t: 0.45, d: 0.12},  // C6
+      {f: 784, t: 0.60, d: 0.12},   // G5
+      {f: 1047, t: 0.75, d: 0.30},  // C6 (long)
+    ];
+    notes.forEach(n => {
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'square';
+      const t = ac.currentTime + n.t;
+      osc.frequency.setValueAtTime(n.f, t);
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.setValueAtTime(0.08, t + n.d * 0.8);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + n.d);
+      osc.connect(gain);
+      gain.connect(ac.destination);
+      osc.start(t);
+      osc.stop(t + n.d + 0.01);
+    });
+    if (callback) setTimeout(callback, 1200);
+  } catch(e) { if (callback) callback(); }
 }
 
 // Subtle bounce sound for moving bonus
