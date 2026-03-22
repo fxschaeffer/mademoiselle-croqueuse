@@ -261,6 +261,10 @@ function googleSignIn() {
   <div class="score-display" id="finalScore"></div>
   <input type="text" id="initialsInput" maxlength="3" placeholder="AAA" autofocus>
   <div class="hint">Entre tes initiales (3 lettres) + Entree</div>
+  <div id="googlePrompt" style="display:none;margin-top:16px;text-align:center">
+    <div style="color:#ffd700;font-size:13px;margin-bottom:8px">Connecte-toi pour un score officiel ✓</div>
+    <button onclick="googleSignInAfterGame()" style="background:#1a1a2e;border:1px solid #0ff;color:#0ff;font-family:'Courier New',monospace;font-size:13px;padding:6px 14px;border-radius:6px;cursor:pointer">🔗 Connexion Google</button>
+  </div>
 </div>
 
 <script>
@@ -2016,7 +2020,10 @@ function loadLeaderboard() {
   });
 }
 
+let pendingScore = 0;
+
 function saveScore(finalScore) {
+  pendingScore = finalScore;
   // Save to Google official if signed in
   if (googleUser) {
     db.ref('scores_official').push({
@@ -2032,13 +2039,44 @@ function saveScore(finalScore) {
   showInitialsPrompt(finalScore);
 }
 
+function googleSignInAfterGame() {
+  auth.signInWithPopup(googleProvider).then((result) => {
+    const user = result.user;
+    if (user && pendingScore > 0) {
+      db.ref('scores_official').push({
+        name: user.displayName || 'Joueur',
+        photo: user.photoURL || '',
+        uid: user.uid,
+        score: pendingScore,
+        date: Date.now(),
+        level: level
+      });
+      const gp = document.getElementById('googlePrompt');
+      if (gp) {
+        gp.innerHTML = '<div style="color:#0f0;font-size:13px">✓ Score officiel enregistre !</div>';
+      }
+      loadLeaderboard();
+    }
+  }).catch(e => console.warn('Google sign-in error:', e));
+}
+
 function showInitialsPrompt(finalScore) {
   const overlay = document.getElementById('initialsOverlay');
   const input = document.getElementById('initialsInput');
+  const gp = document.getElementById('googlePrompt');
   document.getElementById('finalScore').textContent = finalScore;
   overlay.classList.add('show');
   input.value = '';
   input.focus();
+  // Show Google prompt only if not signed in
+  if (gp) {
+    if (googleUser) {
+      gp.style.display = 'none';
+    } else {
+      gp.style.display = 'block';
+      gp.innerHTML = '<div style="color:#ffd700;font-size:13px;margin-bottom:8px">Connecte-toi pour un score officiel ✓</div><button onclick="googleSignInAfterGame()" style="background:#1a1a2e;border:1px solid #0ff;color:#0ff;font-family:\'Courier New\',monospace;font-size:13px;padding:6px 14px;border-radius:6px;cursor:pointer">🔗 Connexion Google</button>';
+    }
+  }
 
   function submit() {
     const name = input.value.toUpperCase().replace(/[^A-Z]/g, '').substring(0, 3);
