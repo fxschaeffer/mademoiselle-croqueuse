@@ -324,6 +324,7 @@ const EXTRA_LIFE_SCORES = [5000, 10000, 15000, 20000, 30000];
 // After 30000, every 10000
 let animFrame = 0;
 let levelTimer = 0; // ms elapsed in current level
+let deathTimer = 0; // ms elapsed in death animation
 let lastTime = 0;
 let moveTimer = 0;
 const BASE_SPEED = 130; // ms per tile move
@@ -791,15 +792,24 @@ function update(dt) {
         lives--;
         updateHUD();
         if (lives <= 0) {
-          gameState = 'gameover';
+          gameState = 'dying';
+          deathTimer = 0;
           MusicEngine.stop();
-          setMessage('GAME OVER ! Appuyez sur R pour recommencer');
+          playDeathSound();
+          setTimeout(() => {
+            gameState = 'gameover';
+            setMessage('GAME OVER ! Appuyez sur R pour recommencer');
+          }, 2000);
         } else {
           gameState = 'dying';
+          deathTimer = 0;
+          MusicEngine.stop();
+          playDeathSound();
           setTimeout(() => {
             resetAfterDeath();
             gameState = 'playing';
-          }, 1500);
+            MusicEngine.start();
+          }, 2000);
         }
       }
     }
@@ -1083,21 +1093,47 @@ function draw() {
   if (gameState !== 'dying') {
     drawPlayer();
   } else {
-    // Death animation
+    // Classic death animation: mouth opens wider and wider until Pac-Man disappears
     const px = player.x * TILE + TILE / 2;
     const py = player.y * TILE + TILE / 2;
     const r = TILE / 2 - 1;
-    ctx.fillStyle = '#ffdd00';
-    ctx.beginPath();
-    ctx.arc(px, py, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#000';
-    ctx.beginPath();
-    ctx.moveTo(px, py);
-    const spread = (animFrame % 20) / 20 * Math.PI * 2;
-    ctx.arc(px, py, r + 1, -spread / 2, spread / 2);
-    ctx.closePath();
-    ctx.fill();
+    const progress = Math.min(1, deathTimer / 1800); // 1.8s animation
+
+    if (progress < 0.15) {
+      // Brief pause - show full Pac-Man
+      drawPlayer();
+    } else if (progress < 0.85) {
+      // Deflating: mouth opens from current direction upward, sweeping around
+      const deflateProgress = (progress - 0.15) / 0.7; // 0 to 1
+      const mouthAngle = deflateProgress * Math.PI; // 0 to PI (full open)
+      const rotation = -Math.PI / 2; // Start from top
+
+      ctx.fillStyle = '#ffdd00';
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.arc(px, py, r, rotation + mouthAngle, rotation + Math.PI * 2 - mouthAngle);
+      ctx.closePath();
+      ctx.fill();
+
+      // Pink bow (stays until almost gone)
+      if (deflateProgress < 0.8) {
+        ctx.fillStyle = '#ff1493';
+        ctx.beginPath();
+        ctx.arc(px + 2, py - r + 2, 3, 0, Math.PI * 2);
+        ctx.arc(px - 4, py - r + 2, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      // Final: shrink to nothing
+      const shrinkProgress = (progress - 0.85) / 0.15;
+      const sr = r * (1 - shrinkProgress);
+      if (sr > 0.5) {
+        ctx.fillStyle = '#ffdd00';
+        ctx.beginPath();
+        ctx.arc(px, py, sr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
   }
 
   ghosts.forEach((g, i) => { if (!g.inHouse || g.mode === 'eaten') drawGhost(g, i); });
@@ -1195,6 +1231,30 @@ function drawStartScreen() {
 }
 
 // ========== HOUSE MUSIC ENGINE ==========
+// Death sound - descending spiral
+function playDeathSound() {
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const duration = 1.5;
+    // Descending tone spiral
+    for (let i = 0; i < 8; i++) {
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'sine';
+      const t = ac.currentTime + i * 0.18;
+      const freq = 800 - i * 90;
+      osc.frequency.setValueAtTime(freq, t);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.5, t + 0.16);
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.17);
+      osc.connect(gain);
+      gain.connect(ac.destination);
+      osc.start(t);
+      osc.stop(t + 0.18);
+    }
+  } catch(e) {}
+}
+
 // Subtle bounce sound for moving bonus
 let bounceCtx;
 function playBounceSound() {
@@ -1524,6 +1584,7 @@ function gameLoop(time) {
   if (gameState === 'start') {
     drawStartScreen();
   } else {
+    if (gameState === 'dying') deathTimer += dt;
     update(dt);
     draw();
   }
