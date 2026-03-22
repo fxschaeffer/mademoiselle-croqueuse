@@ -155,13 +155,13 @@ function updateStats() {
 }
 
 // Load from Firebase
-db.ref('scores/official').orderByChild('score').limitToLast(50).on('value', snap => {
+db.ref('scores_official').orderByChild('score').limitToLast(50).on('value', snap => {
   allOfficialScores = [];
   snap.forEach(c => { allOfficialScores.push(c.val()); });
   renderBoards();
 });
 
-db.ref('scores/arcade').orderByChild('score').limitToLast(50).on('value', snap => {
+db.ref('scores_arcade').orderByChild('score').limitToLast(50).on('value', snap => {
   allArcadeScores = [];
   snap.forEach(c => { allArcadeScores.push(c.val()); });
   renderBoards();
