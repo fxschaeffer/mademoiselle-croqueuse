@@ -317,6 +317,9 @@ let player, ghosts, frightTimer, frightDuration;
 let bonusItem, bonusTimer, bonusActive;
 let ghostsEatenThisFright = 0;
 let scorePopups = []; // {x, y, text, timer}
+let nextExtraLifeIndex = 0;
+const EXTRA_LIFE_SCORES = [5000, 10000, 15000, 20000, 30000];
+// After 30000, every 10000
 let animFrame = 0;
 let lastTime = 0;
 let moveTimer = 0;
@@ -405,6 +408,7 @@ function startGame() {
   frightDuration = 8000;
   bonusActive = false;
   bonusTimer = 0;
+  nextExtraLifeIndex = 0;
   resetMap();
   player = initPlayer();
   ghosts = initGhosts();
@@ -544,7 +548,8 @@ function update(dt) {
   if (gameState !== 'playing') return;
 
   moveTimer += dt;
-  const speed = BASE_SPEED - Math.min(level * 5, 40);
+  // Player speed: gentle increase, stays comfortable
+  const speed = BASE_SPEED - Math.min(level * 3, 25);
 
   if (moveTimer < speed) return;
   moveTimer -= speed;
@@ -559,11 +564,20 @@ function update(dt) {
   const prevPlayerX = player.x;
   const prevPlayerY = player.y;
 
-  // Move player
+  // Move player with input buffering (keeps trying nextDir for several frames)
+  if (!player.inputBuffer) player.inputBuffer = 0;
   let nx = player.x + DX[player.nextDir];
   let ny = player.y + DY[player.nextDir];
   if (canMove(nx, ny) || (isTunnelRow(ny) && (nx < 0 || nx >= COLS))) {
     player.dir = player.nextDir;
+    player.inputBuffer = 0;
+  } else {
+    player.inputBuffer++;
+    // After 6 frames of buffering, give up on the requested direction
+    if (player.inputBuffer > 6) {
+      player.nextDir = player.dir;
+      player.inputBuffer = 0;
+    }
   }
   nx = player.x + DX[player.dir];
   ny = player.y + DY[player.dir];
@@ -651,7 +665,14 @@ function update(dt) {
     } else {
       bonusItem.lerpT = Math.min(1, (bonusItem.lerpT || 0) + 0.25);
     }
-    if (player.x === bonusItem.x && player.y === bonusItem.y) {
+    // Collision: same tile OR swap (player and bonus crossed)
+    const bonusSameTile = player.x === bonusItem.x && player.y === bonusItem.y;
+    const bonusSwap = player.x === bonusItem.prevX && player.y === bonusItem.prevY &&
+                      bonusItem.x === prevPlayerX && bonusItem.y === prevPlayerY;
+    // Also check distance <= 1 tile (close enough to grab)
+    const bonusClose = Math.abs(player.x - bonusItem.x) + Math.abs(player.y - bonusItem.y) <= 1 &&
+                       Math.abs(prevPlayerX - bonusItem.prevX) + Math.abs(prevPlayerY - bonusItem.prevY) <= 1;
+    if (bonusSameTile || bonusSwap) {
       score += bonusItem.points;
       scorePopups.push({ x: bonusItem.x, y: bonusItem.y, text: bonusItem.points.toString(), timer: 1500 });
       bonusActive = false;
@@ -763,6 +784,17 @@ function update(dt) {
       }
     }
   });
+
+  // Extra lives check
+  const nextThreshold = nextExtraLifeIndex < EXTRA_LIFE_SCORES.length
+    ? EXTRA_LIFE_SCORES[nextExtraLifeIndex]
+    : 30000 + (nextExtraLifeIndex - EXTRA_LIFE_SCORES.length + 1) * 10000;
+  if (score >= nextThreshold) {
+    lives++;
+    nextExtraLifeIndex++;
+    updateHUD();
+    scorePopups.push({ x: player.x, y: player.y, text: '1UP!', timer: 2000 });
+  }
 
   // Level complete
   if (dotCount <= 0) {
