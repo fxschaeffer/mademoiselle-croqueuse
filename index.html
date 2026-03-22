@@ -111,7 +111,7 @@
 </div>
 <canvas id="game" width="560" height="620"></canvas>
 <div id="message" id="msg"></div>
-<div id="controls">Fleches / ZQSD pour bouger &bull; ESPACE pour commencer &bull; R pour recommencer &bull; M pour mute</div>
+<div id="controls">Fleches / ZQSD / Manette pour bouger &bull; ESPACE / A pour commencer &bull; R / B pour recommencer &bull; M / Select pour mute</div>
 
 <script>
 const canvas = document.getElementById('game');
@@ -819,7 +819,7 @@ function drawStartScreen() {
 
   ctx.fillStyle = '#888';
   ctx.font = '14px Courier New';
-  ctx.fillText('Fleches / ZQSD pour se deplacer', canvas.width / 2, 540);
+  ctx.fillText('Clavier ou Manette', canvas.width / 2, 540);
   ctx.textAlign = 'left';
 }
 
@@ -1030,6 +1030,97 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault();
 });
 
+// ========== GAMEPAD SUPPORT (Xbox / PlayStation / generic) ==========
+let gamepadConnected = false;
+const gpPrevButtons = {};
+
+window.addEventListener('gamepadconnected', (e) => {
+  gamepadConnected = true;
+  setMessage('Manette connectee : ' + e.gamepad.id.substring(0, 40));
+  setTimeout(() => { if (gameState === 'start') setMessage(''); }, 3000);
+});
+window.addEventListener('gamepaddisconnected', () => {
+  gamepadConnected = false;
+  setMessage('Manette deconnectee');
+  setTimeout(() => setMessage(''), 2000);
+});
+
+function pollGamepad() {
+  const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (const gp of gamepads) {
+    if (!gp) continue;
+
+    // D-pad buttons (standard mapping):
+    // 12=up, 13=down, 14=left, 15=right
+    // Left stick: axes[0]=left/right, axes[1]=up/down
+    // A/Cross=0, B/Circle=1, X/Square=2, Y/Triangle=3
+    // Start=9, Select/Share=8
+
+    const pressed = (i) => gp.buttons[i] && gp.buttons[i].pressed;
+    const justPressed = (i) => {
+      const now = pressed(i);
+      const prev = gpPrevButtons[i] || false;
+      gpPrevButtons[i] = now;
+      return now && !prev;
+    };
+
+    // Directions: D-pad + left stick (deadzone 0.4)
+    const axisX = gp.axes[0] || 0;
+    const axisY = gp.axes[1] || 0;
+    const deadzone = 0.4;
+
+    if (pressed(14) || axisX < -deadzone) { // Left
+      if (gameState === 'playing') player.nextDir = 0;
+    }
+    if (pressed(12) || axisY < -deadzone) { // Up
+      if (gameState === 'playing') player.nextDir = 1;
+    }
+    if (pressed(15) || axisX > deadzone) { // Right
+      if (gameState === 'playing') player.nextDir = 2;
+    }
+    if (pressed(13) || axisY > deadzone) { // Down
+      if (gameState === 'playing') player.nextDir = 3;
+    }
+
+    // A / Cross = start game (like Space)
+    if (justPressed(0)) {
+      if (gameState === 'start') {
+        MusicEngine.init();
+        startGame();
+        MusicEngine.start();
+        setMessage('');
+      }
+    }
+
+    // B / Circle = restart (like R)
+    if (justPressed(1)) {
+      gameState = 'start';
+      modeTimer = 0;
+      modePhase = 0;
+      MusicEngine.stop();
+      setMessage('');
+    }
+
+    // Start button = start game too
+    if (justPressed(9)) {
+      if (gameState === 'start') {
+        MusicEngine.init();
+        startGame();
+        MusicEngine.start();
+        setMessage('');
+      }
+    }
+
+    // Select/Share = mute toggle
+    if (justPressed(8)) {
+      musicMuted = !musicMuted;
+      MusicEngine.setVolume(musicMuted ? 0 : 0.35);
+    }
+
+    break; // use first connected gamepad only
+  }
+}
+
 // Game loop
 gameState = 'start';
 setMessage('');
@@ -1037,6 +1128,8 @@ setMessage('');
 function gameLoop(time) {
   const dt = time - lastTime;
   lastTime = time;
+
+  pollGamepad();
 
   if (gameState === 'start') {
     drawStartScreen();
