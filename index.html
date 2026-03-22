@@ -387,6 +387,7 @@ function canMoveGhost(x, y, ghost) {
   if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return false;
   const t = map[y][x];
   if (t === 5) return true; // ghosts can pass door
+  if (ghost.mode === 'eaten' && t === 4) return true; // eaten ghosts enter house
   return t !== 1 && t !== 4;
 }
 
@@ -442,6 +443,9 @@ function setMessage(txt) {
 
 // Ghost AI
 function getGhostTarget(ghost, idx) {
+  if (ghost.mode === 'eaten') {
+    return { x: 14, y: 11 }; // Target ghost house door
+  }
   if (ghost.mode === 'frightened') {
     return { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
   }
@@ -673,7 +677,9 @@ function update(dt) {
       }
       return;
     }
-    g.lerpT += 1 / ghostInterval;
+    // Eaten ghosts move every frame (fast), normal ghosts use interval
+    const interval = g.mode === 'eaten' ? 1 : ghostInterval;
+    g.lerpT += 1 / interval;
     if (g.lerpT >= 1) {
       g.lerpT = 0;
       g.prevX = g.x;
@@ -681,6 +687,14 @@ function update(dt) {
       moveGhost(g, i);
       // Handle tunnel wrap for interpolation
       if (Math.abs(g.x - g.prevX) > 2) g.prevX = g.x;
+      // Eaten ghost reached ghost house → regenerate
+      if (g.mode === 'eaten' && g.x === 14 && g.y === 11) {
+        g.x = 14; g.y = 14;
+        g.prevX = 14; g.prevY = 14; g.lerpT = 1;
+        g.inHouse = true;
+        g.exitTimer = 3000;
+        g.mode = 'chase';
+      }
     }
   });
 
@@ -699,18 +713,14 @@ function update(dt) {
   }
 
   ghosts.forEach((g, i) => {
-    if (g.inHouse) return;
+    if (g.inHouse || g.mode === 'eaten') return; // eaten ghosts don't collide
     if (checkCollision(g) || checkSwap(g, ghostPrevPos[i])) {
       if (g.mode === 'frightened') {
         const ghostPoints = 200 * Math.pow(2, ghostsEatenThisFright);
         score += ghostPoints;
         ghostsEatenThisFright++;
         scorePopups.push({ x: g.x, y: g.y, text: ghostPoints.toString(), timer: 1500 });
-        g.x = 14; g.y = 14;
-        g.prevX = 14; g.prevY = 14; g.lerpT = 1;
-        g.inHouse = true;
-        g.exitTimer = 3000;
-        g.mode = 'chase';
+        g.mode = 'eaten'; // Eyes return to ghost house
       } else {
         lives--;
         updateHUD();
@@ -892,11 +902,29 @@ function drawGhost(g, ghostIdx) {
   const wave = Math.sin(animFrame * 0.4) * 2;
 
   const isFrightened = g.mode === 'frightened';
+  const isEaten = g.mode === 'eaten';
   const flashing = isFrightened && frightTimer < 2000 && Math.floor(animFrame / 3) % 2;
 
-  if (isFrightened) {
+  if (isEaten) {
+    // Only draw eyes, moving in direction of travel
+    const eyeOx = 4, eyeOy = -2;
+    const pdx = [-1.5, 0, 1.5, 0][g.dir];
+    const pdy = [0, -1.5, 0, 1.5][g.dir];
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(px - eyeOx, py + eyeOy, 3.5, 4.2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(px + eyeOx, py + eyeOy, 3.5, 4.2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2244cc';
+    ctx.beginPath(); ctx.arc(px - eyeOx + pdx, py + eyeOy + pdy, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px + eyeOx + pdx, py + eyeOy + pdy, 2, 0, Math.PI * 2); ctx.fill();
+  } else if (isFrightened) {
     ctx.fillStyle = flashing ? '#fff' : '#2222ff';
     ghostBodyPath(ctx, px, py, r, wave);
+    ctx.fill();
+    // Frightened eyes
+    ctx.fillStyle = flashing ? '#f00' : '#fff';
+    ctx.beginPath();
+    ctx.arc(px - 3, py - 3, 2, 0, Math.PI * 2);
+    ctx.arc(px + 3, py - 3, 2, 0, Math.PI * 2);
     ctx.fill();
   } else {
     // Belgian striped body
@@ -906,23 +934,10 @@ function drawGhost(g, ghostIdx) {
     ctx.strokeStyle = 'rgba(255,255,255,0.4)';
     ctx.lineWidth = 1;
     ctx.stroke();
-  }
-
-  // Eyes
-  if (isFrightened) {
+    // Normal eyes - look toward player
     ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(px - 3, py - 3, 2, 0, Math.PI * 2);
-    ctx.arc(px + 3, py - 3, 2, 0, Math.PI * 2);
-    ctx.fill();
-  } else {
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.ellipse(px - 4, py - 3, 3.5, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(px + 4, py - 3, 3.5, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.ellipse(px - 4, py - 3, 3.5, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(px + 4, py - 3, 3.5, 4, 0, 0, Math.PI * 2); ctx.fill();
     const dx = Math.sign(player.x - g.x) * 1.5;
     const dy = Math.sign(player.y - g.y) * 1.5;
     ctx.fillStyle = '#222';
@@ -968,15 +983,17 @@ function draw() {
         ctx.arc(c * TILE + TILE / 2, r * TILE + TILE / 2, 2, 0, Math.PI * 2);
         ctx.fill();
       } else if (t === 3) {
-        // Power pellet - fixed size, 20% bigger
-        ctx.fillStyle = mc.pelletColor;
-        ctx.beginPath();
-        ctx.arc(c * TILE + TILE / 2, r * TILE + TILE / 2, 5.4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowColor = mc.pelletColor;
-        ctx.shadowBlur = 6;
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        // Power pellet - blinking like original
+        if (Math.floor(animFrame / 8) % 2 === 0) {
+          ctx.fillStyle = mc.pelletColor;
+          ctx.beginPath();
+          ctx.arc(c * TILE + TILE / 2, r * TILE + TILE / 2, 5.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowColor = mc.pelletColor;
+          ctx.shadowBlur = 6;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
       } else if (t === 5) {
         ctx.fillStyle = '#ff88cc';
         ctx.fillRect(c * TILE, r * TILE + TILE / 2 - 2, TILE, 4);
@@ -1006,7 +1023,7 @@ function draw() {
     ctx.fill();
   }
 
-  ghosts.forEach((g, i) => { if (!g.inHouse) drawGhost(g, i); });
+  ghosts.forEach((g, i) => { if (!g.inHouse || g.mode === 'eaten') drawGhost(g, i); });
 
   // Draw score popups
   scorePopups.forEach(p => {
