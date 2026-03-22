@@ -79,11 +79,11 @@
     justify-content: space-between;
     width: 672px;
     padding: 8px 0;
-    font-size: 23px;
-    color: #fff;
+    font-size: 13px;
+    color: #666;
   }
-  #hud span { color: #ffd700; }
-  #hud .lives { color: #ff69b4; font-size: 26px; }
+  #hud span { color: #666; }
+  #hud .lives { color: #666; }
   canvas {
     border: 3px solid #333;
     border-radius: 4px;
@@ -91,10 +91,9 @@
   }
   #message {
     margin-top: 15px;
-    font-size: 18px;
-    color: #0ff;
+    font-size: 13px;
+    color: #666;
     min-height: 24px;
-    text-shadow: 0 0 8px #0ff;
   }
   #controls {
     margin-top: 12px;
@@ -440,16 +439,20 @@ function nextLevel() {
 function updateHUD() {
   document.getElementById('score').textContent = score;
   document.getElementById('level').textContent = level;
-  let livesHTML = '';
-  for (let i = 0; i < lives; i++) {
-    livesHTML += '<svg width="26" height="26" viewBox="0 0 26 26" style="vertical-align:middle;margin:0 2px">' +
-      '<circle cx="13" cy="13" r="11" fill="#ffdd00"/>' +
-      '<path d="M13,13 L24,8 L24,18 Z" fill="#000"/>' +
-      '<circle cx="11" cy="7" r="2.5" fill="#ff69b4"/>' +
-      '<circle cx="14" cy="5" r="2" fill="#ff69b4"/>' +
-      '</svg>';
+  if (lives <= 0) {
+    document.getElementById('lives').textContent = '0';
+  } else {
+    let livesHTML = '';
+    for (let i = 0; i < lives; i++) {
+      livesHTML += '<svg width="18" height="18" viewBox="0 0 26 26" style="vertical-align:middle;margin:0 1px">' +
+        '<circle cx="13" cy="13" r="11" fill="#ffdd00"/>' +
+        '<path d="M13,13 L24,8 L24,18 Z" fill="#000"/>' +
+        '<circle cx="11" cy="7" r="2.5" fill="#ff69b4"/>' +
+        '<circle cx="14" cy="5" r="2" fill="#ff69b4"/>' +
+        '</svg>';
+    }
+    document.getElementById('lives').innerHTML = livesHTML;
   }
-  document.getElementById('lives').innerHTML = livesHTML;
 }
 
 function setMessage(txt) {
@@ -1175,13 +1178,13 @@ function drawStartScreen() {
     ctx.fill();
   });
 
-  ctx.fillStyle = '#0ff';
-  ctx.font = '18px Courier New';
+  ctx.fillStyle = '#666';
+  ctx.font = '13px Courier New';
   const blink = Math.floor(Date.now() / 600) % 2;
   if (blink) ctx.fillText('APPUYEZ SUR ESPACE', canvas.width / 2, 490);
 
-  ctx.fillStyle = '#888';
-  ctx.font = '14px Courier New';
+  ctx.fillStyle = '#666';
+  ctx.font = '13px Courier New';
   ctx.fillText('Clavier ou Manette', canvas.width / 2, 540);
   ctx.textAlign = 'left';
 }
@@ -1503,6 +1506,8 @@ function pollGamepad() {
 
 // Game loop
 gameState = 'start';
+score = 0; lives = 3; level = 1;
+updateHUD();
 setMessage('');
 
 function gameLoop(time) {
