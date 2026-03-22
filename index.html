@@ -1275,8 +1275,21 @@ function playBounceSound() {
 }
 
 // ========== SOUNDTRACK SYSTEM ==========
-const SOUNDTRACK_NAMES = ['Arcade Remix', 'Pac Electro', 'Classic Arcade'];
+const SOUNDTRACK_NAMES = ['Arcade Remix', 'Pac Electro', 'Classic Arcade', 'Retro Pac'];
 let currentSoundtrack = 0;
+
+// Audio file player for soundtrack 4
+let audioTrack = null;
+function initAudioTrack() {
+  if (!audioTrack) {
+    audioTrack = new Audio('pac-arcade.m4a');
+    audioTrack.loop = true;
+    audioTrack.volume = 0.35;
+  }
+}
+function startAudioTrack() { initAudioTrack(); audioTrack.currentTime = 0; audioTrack.play().catch(()=>{}); }
+function stopAudioTrack() { if (audioTrack) { audioTrack.pause(); audioTrack.currentTime = 0; } }
+function setAudioTrackVolume(v) { if (audioTrack) audioTrack.volume = v; }
 
 const MusicEngine = (() => {
   let actx, masterGain, started = false, playing = false;
@@ -1581,6 +1594,12 @@ const MusicEngine = (() => {
   }
 
   function start() {
+    if (currentSoundtrack === 3) {
+      stopAudioTrack();
+      startAudioTrack();
+      playing = true;
+      return;
+    }
     init();
     if (playing) return;
     playing = true;
@@ -1598,6 +1617,7 @@ const MusicEngine = (() => {
   }
 
   function stop() {
+    stopAudioTrack();
     if (!playing) return;
     playing = false;
     clearInterval(stepInterval);
@@ -1610,7 +1630,10 @@ const MusicEngine = (() => {
   }
 
   function setFright(on) { frightMode = on; }
-  function setVolume(v) { if (masterGain) masterGain.gain.value = v; }
+  function setVolume(v) {
+    if (masterGain) masterGain.gain.value = v;
+    setAudioTrackVolume(v);
+  }
 
   return { start, stop, restart, setFright, setVolume, init };
 })();
