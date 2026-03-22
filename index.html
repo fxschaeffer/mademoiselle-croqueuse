@@ -122,12 +122,19 @@ function googleSignIn() {
   #hud {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     width: 672px;
-    padding: 8px 0;
+    margin: 0 auto;
+    padding: 8px 4px;
     font-size: 18px;
     color: #0ff;
     text-shadow: 0 0 8px #0ff;
   }
+  #hud > div { flex: 1; }
+  #hud > div:first-child { text-align: left; }
+  #hud > div:nth-child(2) { text-align: center; }
+  #hud > div:nth-child(3) { text-align: right; }
+  #hud > div:nth-child(4) { flex: 0; white-space: nowrap; }
   #hud span { color: #0ff; }
   #hud .lives { color: #0ff; }
   canvas {
