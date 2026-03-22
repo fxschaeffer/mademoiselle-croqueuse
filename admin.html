@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<title>Admin - Mademoiselle Croqueuse</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyDi2bVeVK_Q_jRFIRiCKfqao0gT3oQOP0M",
+  authDomain: "mademoiselle-croqueuse.firebaseapp.com",
+  databaseURL: "https://mademoiselle-croqueuse-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "mademoiselle-croqueuse",
+  storageBucket: "mademoiselle-croqueuse.firebasestorage.app",
+  messagingSenderId: "1014156721559",
+  appId: "1:1014156721559:web:4de88fd80a86a29a0318d2"
+});
+const db = firebase.database();
+</script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #fff; font-family: 'Courier New', monospace; min-height: 100vh; }
+.container { max-width: 900px; margin: 0 auto; padding: 20px; }
+h1 { text-align: center; color: #ff69b4; font-size: 24px; margin: 20px 0; text-shadow: 0 0 10px #ff69b4; }
+h2 { color: #0ff; font-size: 16px; margin: 15px 0 10px; }
+.lock-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; }
+.lock-screen h1 { margin-bottom: 20px; }
+.lock-screen input { background: #111; border: 1px solid #333; color: #0ff; padding: 10px 20px;
+  font-family: inherit; font-size: 16px; text-align: center; border-radius: 4px; width: 200px; }
+.lock-screen .hint { color: #555; font-size: 12px; margin-top: 10px; }
+.back-link { display: inline-block; margin: 10px 0; color: #0ff; text-decoration: none;
+  border: 1px solid #0ff; padding: 6px 14px; border-radius: 4px; font-size: 13px; }
+.back-link:hover { background: #0ff2; }
+.maze-card { background: #111; border: 1px solid #333; border-radius: 8px; padding: 15px;
+  margin-bottom: 15px; display: flex; gap: 15px; align-items: center; }
+.maze-card.archived { opacity: 0.5; border-color: #222; }
+.maze-preview { width: 140px; height: 155px; flex-shrink: 0; }
+.maze-preview canvas { border: 1px solid #333; border-radius: 4px; }
+.maze-info { flex: 1; }
+.maze-info .name { font-size: 16px; color: #ffd700; margin-bottom: 5px; }
+.maze-info .details { font-size: 12px; color: #888; }
+.maze-controls { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+.btn { background: #1a1a2e; border: 1px solid #333; color: #0ff; padding: 6px 14px;
+  border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 12px; }
+.btn:hover { background: #0ff2; }
+.btn.active { background: #0a3a0a; border-color: #0f0; color: #0f0; }
+.btn.archive { border-color: #f44; color: #f44; }
+.btn.archive:hover { background: #f442; }
+.order-input { width: 40px; background: #111; border: 1px solid #333; color: #ffd700;
+  padding: 4px; text-align: center; font-family: inherit; font-size: 14px; border-radius: 4px; }
+.save-bar { position: sticky; bottom: 0; background: #0a0a1a; border-top: 1px solid #333;
+  padding: 15px; text-align: center; }
+.save-btn { background: #0a3a0a; border: 2px solid #0f0; color: #0f0; padding: 10px 30px;
+  font-family: inherit; font-size: 16px; border-radius: 6px; cursor: pointer; }
+.save-btn:hover { background: #0f02; }
+.status { color: #0f0; margin-top: 10px; font-size: 14px; }
+.maze-names { font-size: 11px; color: #666; margin-top: 5px; }
+#adminContent { display: none; }
+</style>
+</head>
+<body>
+
+<div class="lock-screen" id="lockScreen">
+  <h1>Admin Mademoiselle Croqueuse</h1>
+  <input type="password" id="adminPass" placeholder="Mot de passe admin" autofocus>
+  <div class="hint">Acces restreint</div>
+</div>
+
+<div id="adminContent" class="container">
+  <h1>Admin - Gestion des Labyrinthes</h1>
+  <div style="text-align:center"><a href="index.html" class="back-link">← Retour au jeu</a></div>
+
+  <h2>Configuration des niveaux</h2>
+  <p style="color:#888;font-size:12px;margin-bottom:15px">
+    Definissez l'ordre des labyrinthes et activez/archivez-les. Les joueurs ne verront que les labyrinthes actifs, dans l'ordre defini.
+  </p>
+
+  <div id="mazeList"></div>
+
+  <div class="save-bar">
+    <button class="save-btn" onclick="saveConfig()">Sauvegarder la configuration</button>
+    <div class="status" id="saveStatus"></div>
+  </div>
+</div>
+
+<script>
+const MAZE_NAMES = ['Rose', 'Cyan', 'Orange', 'Vert', 'Violet'];
+const MAZE_COLORS_ADMIN = [
+  { fill: '#5e1a3a', stroke: '#ff44aa' },
+  { fill: '#1a4a5e', stroke: '#44ddff' },
+  { fill: '#5e3a1a', stroke: '#ff8844' },
+  { fill: '#1a5e2a', stroke: '#44ff66' },
+  { fill: '#3a1a5e', stroke: '#aa44ff' },
+];
+
+// All mazes (same data as in game)
+const ALL_MAZES = [
+  // Copy maze data references - we just need to know there are 5 mazes (indices 0-4)
+  0, 1, 2, 3, 4
+];
+
+let config = {
+  mazes: [
+    { id: 0, name: 'Rose', active: true, order: 1 },
+    { id: 1, name: 'Cyan', active: true, order: 2 },
+    { id: 2, name: 'Orange', active: true, order: 3 },
+    { id: 3, name: 'Vert', active: true, order: 4 },
+    { id: 4, name: 'Violet', active: true, order: 5 },
+  ]
+};
+
+// Password check
+document.getElementById('adminPass').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    if (e.target.value === 'sasxav') {
+      document.getElementById('lockScreen').style.display = 'none';
+      document.getElementById('adminContent').style.display = 'block';
+      loadConfig();
+    } else {
+      e.target.style.borderColor = '#f44';
+      e.target.value = '';
+    }
+  }
+});
+
+function loadConfig() {
+  db.ref('maze_config').once('value', (snap) => {
+    const val = snap.val();
+    if (val && val.mazes) {
+      config = val;
+    }
+    renderMazeList();
+  });
+}
+
+function renderMazeList() {
+  const list = document.getElementById('mazeList');
+  // Sort by order
+  const sorted = [...config.mazes].sort((a, b) => a.order - b.order);
+
+  list.innerHTML = sorted.map((m, idx) => {
+    const colors = MAZE_COLORS_ADMIN[m.id] || MAZE_COLORS_ADMIN[0];
+    return `
+    <div class="maze-card ${m.active ? '' : 'archived'}" data-id="${m.id}">
+      <div class="maze-preview">
+        <canvas id="preview_${m.id}" width="140" height="155"></canvas>
+      </div>
+      <div class="maze-info">
+        <div class="name" style="color:${colors.stroke}">${m.name || MAZE_NAMES[m.id]}</div>
+        <div class="details">
+          Labyrinthe #${m.id + 1} |
+          ${m.active ? '<span style="color:#0f0">Actif</span>' : '<span style="color:#f44">Archive</span>'}
+        </div>
+        <div class="maze-names">Couleur: ${MAZE_NAMES[m.id]}</div>
+      </div>
+      <div class="maze-controls">
+        <label style="font-size:12px;color:#888">Ordre:
+          <input type="number" class="order-input" value="${m.order}" min="1" max="10"
+            onchange="updateOrder(${m.id}, this.value)">
+        </label>
+        <button class="btn ${m.active ? 'active' : ''}" onclick="toggleActive(${m.id})">
+          ${m.active ? '✓ Actif' : '✗ Archive'}
+        </button>
+        ${!m.active ? `<button class="btn archive" onclick="toggleActive(${m.id})">Reactiver</button>` :
+          `<button class="btn archive" onclick="toggleActive(${m.id})">Archiver</button>`}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Draw mini previews
+  sorted.forEach(m => drawMiniPreview(m.id));
+}
+
+function drawMiniPreview(mazeId) {
+  const canvas = document.getElementById('preview_' + mazeId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const colors = MAZE_COLORS_ADMIN[mazeId];
+
+  // We'll fetch the maze data from Firebase or draw a colored rectangle
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, 140, 155);
+
+  // Draw a stylized preview
+  ctx.fillStyle = colors.fill;
+  ctx.strokeStyle = colors.stroke;
+  ctx.lineWidth = 1;
+
+  // Simple maze-like pattern
+  const s = 5; // scale
+  for (let r = 0; r < 31; r++) {
+    for (let c = 0; c < 28; c++) {
+      // Draw border and some pattern based on maze ID
+      const isBorder = r === 0 || r === 30 || c === 0 || c === 27;
+      const isGH = r >= 12 && r <= 16 && c >= 10 && c <= 17;
+      const pattern = ((r + c + mazeId * 3) % 3 === 0) && !isBorder && !isGH;
+      if (isBorder || pattern) {
+        ctx.fillRect(c * s, r * s, s, s);
+      }
+    }
+  }
+
+  // Label
+  ctx.fillStyle = colors.stroke;
+  ctx.font = 'bold 11px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText(MAZE_NAMES[mazeId], 70, 150);
+}
+
+function toggleActive(id) {
+  const maze = config.mazes.find(m => m.id === id);
+  if (maze) {
+    maze.active = !maze.active;
+    renderMazeList();
+  }
+}
+
+function updateOrder(id, val) {
+  const maze = config.mazes.find(m => m.id === id);
+  if (maze) {
+    maze.order = parseInt(val) || 1;
+  }
+}
+
+function saveConfig() {
+  const activeMazes = config.mazes.filter(m => m.active);
+  if (activeMazes.length === 0) {
+    document.getElementById('saveStatus').textContent = 'Erreur: au moins 1 labyrinthe doit etre actif !';
+    document.getElementById('saveStatus').style.color = '#f44';
+    return;
+  }
+
+  db.ref('maze_config').set(config).then(() => {
+    document.getElementById('saveStatus').textContent = 'Configuration sauvegardee ! Les joueurs verront ' + activeMazes.length + ' labyrinthe(s).';
+    document.getElementById('saveStatus').style.color = '#0f0';
+    setTimeout(() => { document.getElementById('saveStatus').textContent = ''; }, 3000);
+  }).catch(err => {
+    document.getElementById('saveStatus').textContent = 'Erreur: ' + err.message;
+    document.getElementById('saveStatus').style.color = '#f44';
+  });
+}
+</script>
+</body>
+</html>

@@ -494,7 +494,24 @@ const BONUS_FRUITS = [
   { name: 'drapeau', emoji: '🇧🇪', points: 2000 },
 ];
 
-function getMazeIndex() { return (level - 1) % MAZES.length; }
+// Active maze config (loaded from Firebase, fallback to all mazes)
+let activeMazeOrder = [0, 1, 2, 3, 4]; // default: all 5 in order
+
+// Load maze config from Firebase
+db.ref('maze_config').on('value', (snap) => {
+  const val = snap.val();
+  if (val && val.mazes) {
+    const active = val.mazes.filter(m => m.active).sort((a, b) => a.order - b.order);
+    if (active.length > 0) {
+      activeMazeOrder = active.map(m => m.id);
+    }
+  }
+});
+
+function getMazeIndex() {
+  const idx = (level - 1) % activeMazeOrder.length;
+  return activeMazeOrder[idx];
+}
 function getMazeColors() { return MAZE_COLORS[getMazeIndex()]; }
 
 // Detect tunnel rows dynamically (rows where col 0 is a path)
