@@ -1276,10 +1276,12 @@ function playBounceSound() {
 
 const MusicEngine = (() => {
   let actx, masterGain, started = false, playing = false;
-  let kickInterval, bassInterval, hihatInterval, melodyInterval, arpInterval;
-  const BPM = 128;
+  let stepInterval;
+  const BPM = 88;
   const beat = 60 / BPM;
+  const sixteenth = beat / 4;
   let frightMode = false;
+  let step = 0;
 
   function init() {
     if (started) return;
@@ -1290,145 +1292,119 @@ const MusicEngine = (() => {
     started = true;
   }
 
-  // --- Kick drum (4 on the floor) ---
-  function kick() {
-    const t = actx.currentTime;
+  // --- Chiptune note player ---
+  function playNote(freq, type, vol, duration, delay) {
+    const t = actx.currentTime + (delay || 0);
     const osc = actx.createOscillator();
+    osc.type = type;
+    osc.frequency.value = freq;
     const g = actx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(150, t);
-    osc.frequency.exponentialRampToValueAtTime(30, t + 0.12);
-    g.gain.setValueAtTime(0.7, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.setValueAtTime(vol, t + duration * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.001, t + duration * 0.95);
     osc.connect(g);
     g.connect(masterGain);
     osc.start(t);
-    osc.stop(t + 0.25);
+    osc.stop(t + duration);
   }
 
-  // --- Hi-hat (offbeat 8ths) ---
-  function hihat() {
+  // --- Noise hit (hi-hat / snare) ---
+  function noise(vol, duration, highpass) {
     const t = actx.currentTime;
-    const bufSize = actx.sampleRate * 0.05;
-    const buf = actx.createBuffer(1, bufSize, actx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    const sz = actx.sampleRate * duration;
+    const buf = actx.createBuffer(1, sz, actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < sz; i++) d[i] = Math.random() * 2 - 1;
     const src = actx.createBufferSource();
     src.buffer = buf;
     const hp = actx.createBiquadFilter();
     hp.type = 'highpass';
-    hp.frequency.value = 8000;
+    hp.frequency.value = highpass || 7000;
     const g = actx.createGain();
-    g.gain.setValueAtTime(0.15, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
-    src.connect(hp);
-    hp.connect(g);
-    g.connect(masterGain);
-    src.start(t);
-    src.stop(t + 0.05);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + duration * 0.9);
+    src.connect(hp); hp.connect(g); g.connect(masterGain);
+    src.start(t); src.stop(t + duration);
   }
 
-  // --- Acid bass (squelchy 303-style) ---
-  const bassNotes = [55, 55, 65.41, 55, 73.42, 55, 65.41, 82.41]; // Am groove
-  let bassStep = 0;
-  function bass() {
+  // --- Kick ---
+  function kick() {
     const t = actx.currentTime;
-    const freq = frightMode
-      ? [82.41, 87.31, 98, 87.31, 82.41, 73.42, 65.41, 73.42][bassStep % 8]
-      : bassNotes[bassStep % bassNotes.length];
-    bassStep++;
     const osc = actx.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.value = freq;
-    const flt = actx.createBiquadFilter();
-    flt.type = 'lowpass';
-    flt.Q.value = 12;
-    flt.frequency.setValueAtTime(1800, t);
-    flt.frequency.exponentialRampToValueAtTime(200, t + beat * 0.8);
     const g = actx.createGain();
-    g.gain.setValueAtTime(0.25, t);
-    g.gain.setValueAtTime(0.25, t + beat * 0.7);
-    g.gain.exponentialRampToValueAtTime(0.001, t + beat * 0.95);
-    osc.connect(flt);
-    flt.connect(g);
-    g.connect(masterGain);
-    osc.start(t);
-    osc.stop(t + beat);
-  }
-
-  // --- Melody (catchy synth hook) ---
-  // Original melody - bouncy arcade feel
-  const melodyA = [440, 523.25, 587.33, 523.25, 440, 392, 349.23, 392];
-  const melodyB = [523.25, 587.33, 659.25, 587.33, 523.25, 440, 523.25, 0];
-  const melodyFright = [349.23, 329.63, 311.13, 329.63, 293.66, 277.18, 261.63, 277.18];
-  let melStep = 0;
-  function melody() {
-    const t = actx.currentTime;
-    const seq = frightMode ? melodyFright : (melStep < 8 ? melodyA : melodyB);
-    const note = seq[melStep % 8];
-    melStep = (melStep + 1) % 16;
-    if (note === 0) return;
-
-    const osc = actx.createOscillator();
-    osc.type = 'square';
-    osc.frequency.value = note;
-    const flt = actx.createBiquadFilter();
-    flt.type = 'lowpass';
-    flt.frequency.value = 2000;
-    flt.Q.value = 2;
-    const g = actx.createGain();
-    g.gain.setValueAtTime(0.12, t);
-    g.gain.setValueAtTime(0.12, t + beat * 0.4);
-    g.gain.exponentialRampToValueAtTime(0.001, t + beat * 0.6);
-    osc.connect(flt);
-    flt.connect(g);
-    g.connect(masterGain);
-    osc.start(t);
-    osc.stop(t + beat * 0.65);
-  }
-
-  // --- Arpeggio (bubbly background) ---
-  const arpNotesA = [220, 261.63, 329.63, 392, 329.63, 261.63];
-  const arpNotesF = [196, 233.08, 293.66, 349.23, 293.66, 233.08];
-  let arpStep = 0;
-  function arp() {
-    const t = actx.currentTime;
-    const notes = frightMode ? arpNotesF : arpNotesA;
-    const freq = notes[arpStep % notes.length];
-    arpStep++;
-    const osc = actx.createOscillator();
     osc.type = 'triangle';
-    osc.frequency.value = freq * 2;
-    const g = actx.createGain();
-    g.gain.setValueAtTime(0.06, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + beat * 0.3);
-    osc.connect(g);
-    g.connect(masterGain);
-    osc.start(t);
-    osc.stop(t + beat * 0.35);
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(25, t + 0.1);
+    g.gain.setValueAtTime(0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    osc.connect(g); g.connect(masterGain);
+    osc.start(t); osc.stop(t + 0.15);
+  }
+
+  // --- Melodies (original, arcade-style) ---
+  // C major pentatonic based, bouncy and playful
+  const melA = [523, 587, 659, 784, 659, 587, 523, 494, 523, 587, 659, 784, 880, 784, 659, 0];
+  const melB = [659, 784, 880, 784, 659, 587, 523, 587, 659, 523, 494, 523, 587, 659, 523, 0];
+  const melFright = [311, 330, 349, 330, 311, 294, 262, 294, 311, 330, 294, 262, 247, 262, 294, 0];
+
+  // Bass: simple bouncy root notes
+  const bassA = [131, 0, 131, 0, 147, 0, 131, 0, 165, 0, 147, 0, 131, 0, 110, 0];
+  const bassF = [98, 0, 98, 0, 110, 0, 98, 0, 87, 0, 98, 0, 110, 0, 98, 0];
+
+  // Arp pattern (quick ascending arpeggios every 4 steps)
+  const arpA = [262, 330, 392, 523, 0, 0, 0, 0, 294, 349, 440, 523, 0, 0, 0, 0];
+  const arpF = [247, 311, 370, 494, 0, 0, 0, 0, 262, 330, 392, 494, 0, 0, 0, 0];
+
+  function doStep() {
+    const s = step % 16;
+
+    // Kick on beats 0, 4, 8, 12
+    if (s % 4 === 0) kick();
+
+    // Hi-hat on 8th notes (every 2 steps)
+    if (s % 2 === 0) noise(0.06, 0.03, 9000);
+
+    // Snare on beats 4, 12
+    if (s === 4 || s === 12) noise(0.1, 0.06, 3000);
+
+    // Melody (square wave, every 2 steps = 8th notes)
+    if (s % 2 === 0) {
+      const phrase = step < 32 ? 0 : 1;
+      const seq = frightMode ? melFright : (phrase === 0 ? melA : melB);
+      const note = seq[s];
+      if (note > 0) playNote(note, 'square', 0.08, sixteenth * 1.5);
+    }
+
+    // Bass (triangle wave, every 2 steps)
+    if (s % 2 === 0) {
+      const seq = frightMode ? bassF : bassA;
+      const note = seq[s];
+      if (note > 0) playNote(note, 'triangle', 0.15, sixteenth * 1.8);
+    }
+
+    // Arpeggio (triangle, quick notes on specific steps)
+    const arpSeq = frightMode ? arpF : arpA;
+    const arpNote = arpSeq[s];
+    if (arpNote > 0) playNote(arpNote, 'triangle', 0.04, sixteenth * 0.8);
+
+    step++;
+    if (step >= 64) step = 0;
   }
 
   function start() {
     init();
     if (playing) return;
     playing = true;
+    step = 0;
     if (actx.state === 'suspended') actx.resume();
-    kickInterval = setInterval(kick, beat * 1000);
-    hihatInterval = setInterval(hihat, beat * 500);
-    bassInterval = setInterval(bass, beat * 1000);
-    melodyInterval = setInterval(melody, beat * 500);
-    arpInterval = setInterval(arp, beat * 1000 / 3);
-    kick(); bass(); // play first beat immediately
+    stepInterval = setInterval(doStep, sixteenth * 1000);
+    doStep();
   }
 
   function stop() {
     if (!playing) return;
     playing = false;
-    clearInterval(kickInterval);
-    clearInterval(hihatInterval);
-    clearInterval(bassInterval);
-    clearInterval(melodyInterval);
-    clearInterval(arpInterval);
+    clearInterval(stepInterval);
   }
 
   function setFright(on) {
