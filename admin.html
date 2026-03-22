@@ -58,6 +58,30 @@ h2 { color: #0ff; font-size: 16px; margin: 15px 0 10px; }
 .status { color: #0f0; margin-top: 10px; font-size: 14px; }
 .maze-names { font-size: 11px; color: #666; margin-top: 5px; }
 #adminContent { display: none; }
+.tabs { display: flex; gap: 10px; margin: 15px 0; justify-content: center; }
+.tab { background: #111; border: 1px solid #333; color: #888; padding: 10px 20px;
+  border-radius: 6px 6px 0 0; cursor: pointer; font-family: inherit; font-size: 14px; }
+.tab:hover { background: #1a1a2e; color: #0ff; }
+.tab.active { background: #1a1a2e; color: #0ff; border-color: #0ff; border-bottom-color: #0a0a1a; }
+.audio-section { background: #111; border: 1px solid #333; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+.audio-section h3 { color: #ffd700; font-size: 14px; margin-bottom: 12px; }
+.soundtrack-card { display: flex; align-items: center; gap: 12px; padding: 10px;
+  border-bottom: 1px solid #222; }
+.soundtrack-card:last-child { border-bottom: none; }
+.soundtrack-name { flex: 1; font-size: 13px; }
+.context-row { display: flex; align-items: center; gap: 12px; padding: 8px 0;
+  border-bottom: 1px solid #222; }
+.context-row:last-child { border-bottom: none; }
+.context-label { width: 160px; font-size: 13px; color: #ccc; }
+.audio-select { background: #111; border: 1px solid #333; color: #0ff; padding: 6px 10px;
+  border-radius: 4px; font-family: inherit; font-size: 12px; flex: 1; max-width: 250px; }
+.volume-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.volume-slider { flex: 1; max-width: 200px; accent-color: #0ff; }
+.vol-val { color: #0ff; font-size: 13px; width: 40px; }
+.sfx-row { display: flex; align-items: center; gap: 12px; padding: 6px 0;
+  border-bottom: 1px solid #222; }
+.sfx-row:last-child { border-bottom: none; }
+.sfx-name { flex: 1; font-size: 12px; color: #ccc; }
 </style>
 </head>
 <body>
@@ -72,12 +96,72 @@ h2 { color: #0ff; font-size: 16px; margin: 15px 0 10px; }
   <h1>Admin - Gestion des Labyrinthes</h1>
   <div style="text-align:center"><a href="index.html" class="back-link">← Retour au jeu</a></div>
 
-  <h2>Configuration des niveaux</h2>
-  <p style="color:#888;font-size:12px;margin-bottom:15px">
-    Definissez l'ordre des labyrinthes et activez/archivez-les. Les joueurs ne verront que les labyrinthes actifs, dans l'ordre defini.
-  </p>
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('mazes')">🎨 Labyrinthes</button>
+    <button class="tab" onclick="showTab('audio')">🔊 Audio</button>
+  </div>
 
-  <div id="mazeList"></div>
+  <!-- MAZES TAB -->
+  <div id="tab-mazes" class="tab-content">
+    <h2>Configuration des niveaux</h2>
+    <p style="color:#888;font-size:12px;margin-bottom:15px">
+      Definissez l'ordre des labyrinthes et activez/archivez-les. Les joueurs ne verront que les labyrinthes actifs, dans l'ordre defini.
+    </p>
+    <div id="mazeList"></div>
+  </div>
+
+  <!-- AUDIO TAB -->
+  <div id="tab-audio" class="tab-content" style="display:none">
+    <h2>🎵 Musiques de fond</h2>
+    <p style="color:#888;font-size:12px;margin-bottom:15px">
+      Activez/desactivez les soundtracks et choisissez la musique par contexte.
+    </p>
+
+    <div class="audio-section">
+      <h3>Soundtracks disponibles</h3>
+      <div id="soundtrackList"></div>
+    </div>
+
+    <div class="audio-section">
+      <h3>Musique par contexte</h3>
+      <div class="context-row">
+        <span class="context-label">🏠 Splash Screen :</span>
+        <select id="ctx-splash" class="audio-select"></select>
+      </div>
+      <div class="context-row">
+        <span class="context-label">🎮 En jeu :</span>
+        <span style="color:#888;font-size:12px">Le joueur choisit avec T (parmi les actives)</span>
+      </div>
+      <div class="context-row">
+        <span class="context-label">💀 Game Over :</span>
+        <select id="ctx-gameover" class="audio-select"></select>
+      </div>
+      <div class="context-row">
+        <span class="context-label">🏆 Leaderboard :</span>
+        <select id="ctx-leaderboard" class="audio-select"></select>
+      </div>
+    </div>
+
+    <div class="audio-section">
+      <h3>🔊 Volumes par defaut</h3>
+      <div class="volume-row">
+        <span class="context-label">Musique :</span>
+        <input type="range" id="vol-music" min="0" max="100" value="35" class="volume-slider">
+        <span id="vol-music-val" class="vol-val">35%</span>
+      </div>
+      <div class="volume-row">
+        <span class="context-label">Effets :</span>
+        <input type="range" id="vol-sfx" min="0" max="100" value="50" class="volume-slider">
+        <span id="vol-sfx-val" class="vol-val">50%</span>
+      </div>
+    </div>
+
+    <div class="audio-section">
+      <h3>🔔 Effets sonores</h3>
+      <div id="sfxList"></div>
+    </div>
+  </div>
 
   <div class="save-bar">
     <button class="save-btn" onclick="saveConfig()">Sauvegarder la configuration</button>
@@ -86,6 +170,14 @@ h2 { color: #0ff; font-size: 16px; margin: 15px 0 10px; }
 </div>
 
 <script>
+// Tab navigation
+function showTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tab).style.display = 'block';
+  event.target.classList.add('active');
+}
+
 const MAZE_NAMES = ['Rose', 'Cyan', 'Orange', 'Vert', 'Violet'];
 const MAZE_COLORS_ADMIN = [
   { fill: '#5e1a3a', stroke: '#ff44aa' },
@@ -101,6 +193,22 @@ const ALL_MAZES = [
   0, 1, 2, 3, 4
 ];
 
+const SOUNDTRACKS = [
+  { id: 0, name: 'Arcade Remix', type: 'procedural', desc: 'Chiptune 130 BPM, style arcade classique' },
+  { id: 1, name: 'Pac Electro', type: 'procedural', desc: 'Electro 130 BPM, plus percussif' },
+  { id: 2, name: 'Classic Arcade', type: 'procedural', desc: 'Chiptune retro, sons NES' },
+  { id: 3, name: 'Retro Pac', type: 'audio', desc: 'Fichier audio pac-arcade.m4a' },
+];
+
+const SFX_LIST = [
+  { id: 'waka', name: 'Waka Waka', desc: 'Son quand Pac-Man mange les dots' },
+  { id: 'death', name: 'Mort', desc: 'Animation de mort de Pac-Man' },
+  { id: 'ghost_eat', name: 'Manger fantome', desc: 'Son quand on mange un fantome bleu' },
+  { id: 'jingle', name: 'Jingle debut', desc: 'Jingle au debut de chaque niveau' },
+  { id: 'bounce', name: 'Rebond bonus', desc: 'Petit boing quand le bonus rebondit' },
+  { id: 'power', name: 'Super pastille', desc: 'Son quand on mange une super pastille' },
+];
+
 let config = {
   mazes: [
     { id: 0, name: 'Rose', active: true, order: 1 },
@@ -108,7 +216,28 @@ let config = {
     { id: 2, name: 'Orange', active: true, order: 3 },
     { id: 3, name: 'Vert', active: true, order: 4 },
     { id: 4, name: 'Violet', active: true, order: 5 },
-  ]
+  ],
+  audio: {
+    soundtracks: [
+      { id: 0, active: true },
+      { id: 1, active: true },
+      { id: 2, active: true },
+      { id: 3, active: true },
+    ],
+    context: {
+      splash: 0,
+      gameover: -1, // -1 = silence
+      leaderboard: -1,
+    },
+    volumes: {
+      music: 35,
+      sfx: 50,
+    },
+    sfx: {
+      waka: true, death: true, ghost_eat: true,
+      jingle: true, bounce: true, power: true,
+    }
+  }
 };
 
 // Password check
@@ -129,10 +258,98 @@ function loadConfig() {
   db.ref('maze_config').once('value', (snap) => {
     const val = snap.val();
     if (val && val.mazes) {
-      config = val;
+      config.mazes = val.mazes;
+    }
+    if (val && val.audio) {
+      config.audio = { ...config.audio, ...val.audio };
+      if (val.audio.soundtracks) config.audio.soundtracks = val.audio.soundtracks;
+      if (val.audio.context) config.audio.context = { ...config.audio.context, ...val.audio.context };
+      if (val.audio.volumes) config.audio.volumes = { ...config.audio.volumes, ...val.audio.volumes };
+      if (val.audio.sfx) config.audio.sfx = { ...config.audio.sfx, ...val.audio.sfx };
     }
     renderMazeList();
+    renderAudio();
   });
+}
+
+function renderAudio() {
+  // Soundtracks
+  const stList = document.getElementById('soundtrackList');
+  stList.innerHTML = SOUNDTRACKS.map(st => {
+    const cfg = config.audio.soundtracks.find(s => s.id === st.id) || { id: st.id, active: true };
+    return `
+    <div class="soundtrack-card">
+      <button class="btn ${cfg.active ? 'active' : ''}" onclick="toggleSoundtrack(${st.id})" style="width:80px">
+        ${cfg.active ? '✓ Actif' : '✗ Off'}
+      </button>
+      <div class="soundtrack-name">
+        <strong>${st.name}</strong>
+        <div style="color:#666;font-size:11px">${st.desc}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Context selects
+  const options = '<option value="-1">Silence</option>' +
+    SOUNDTRACKS.map(st => `<option value="${st.id}">${st.name}</option>`).join('');
+
+  ['splash', 'gameover', 'leaderboard'].forEach(ctx => {
+    const sel = document.getElementById('ctx-' + ctx);
+    if (sel) {
+      sel.innerHTML = options;
+      sel.value = config.audio.context[ctx] !== undefined ? config.audio.context[ctx] : -1;
+      sel.onchange = () => { config.audio.context[ctx] = parseInt(sel.value); };
+    }
+  });
+
+  // Volumes
+  const musicSlider = document.getElementById('vol-music');
+  const sfxSlider = document.getElementById('vol-sfx');
+  musicSlider.value = config.audio.volumes.music;
+  sfxSlider.value = config.audio.volumes.sfx;
+  document.getElementById('vol-music-val').textContent = config.audio.volumes.music + '%';
+  document.getElementById('vol-sfx-val').textContent = config.audio.volumes.sfx + '%';
+  musicSlider.oninput = () => {
+    config.audio.volumes.music = parseInt(musicSlider.value);
+    document.getElementById('vol-music-val').textContent = musicSlider.value + '%';
+  };
+  sfxSlider.oninput = () => {
+    config.audio.volumes.sfx = parseInt(sfxSlider.value);
+    document.getElementById('vol-sfx-val').textContent = sfxSlider.value + '%';
+  };
+
+  // SFX toggles
+  const sfxList = document.getElementById('sfxList');
+  sfxList.innerHTML = SFX_LIST.map(sfx => {
+    const active = config.audio.sfx[sfx.id] !== false;
+    return `
+    <div class="sfx-row">
+      <button class="btn ${active ? 'active' : ''}" onclick="toggleSfx('${sfx.id}')" style="width:80px">
+        ${active ? '✓ Actif' : '✗ Off'}
+      </button>
+      <div class="sfx-name">
+        <strong>${sfx.name}</strong>
+        <span style="color:#555"> - ${sfx.desc}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleSoundtrack(id) {
+  const st = config.audio.soundtracks.find(s => s.id === id);
+  if (st) {
+    st.active = !st.active;
+    // Au moins 1 soundtrack doit rester active
+    if (config.audio.soundtracks.filter(s => s.active).length === 0) {
+      st.active = true;
+    }
+    renderAudio();
+  }
+}
+
+function toggleSfx(id) {
+  config.audio.sfx[id] = !config.audio.sfx[id];
+  renderAudio();
 }
 
 function renderMazeList() {
@@ -232,10 +449,18 @@ function saveConfig() {
     return;
   }
 
+  const activeST = config.audio.soundtracks.filter(s => s.active);
+  if (activeST.length === 0) {
+    document.getElementById('saveStatus').textContent = 'Erreur: au moins 1 soundtrack doit etre active !';
+    document.getElementById('saveStatus').style.color = '#f44';
+    return;
+  }
+
   db.ref('maze_config').set(config).then(() => {
-    document.getElementById('saveStatus').textContent = 'Configuration sauvegardee ! Les joueurs verront ' + activeMazes.length + ' labyrinthe(s).';
+    const msg = 'Sauvegarde OK ! ' + activeMazes.length + ' labyrinthe(s), ' + activeST.length + ' soundtrack(s)';
+    document.getElementById('saveStatus').textContent = msg;
     document.getElementById('saveStatus').style.color = '#0f0';
-    setTimeout(() => { document.getElementById('saveStatus').textContent = ''; }, 3000);
+    setTimeout(() => { document.getElementById('saveStatus').textContent = ''; }, 4000);
   }).catch(err => {
     document.getElementById('saveStatus').textContent = 'Erreur: ' + err.message;
     document.getElementById('saveStatus').style.color = '#f44';

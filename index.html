@@ -497,7 +497,15 @@ const BONUS_FRUITS = [
 // Active maze config (loaded from Firebase, fallback to all mazes)
 let activeMazeOrder = [0, 1, 2, 3, 4]; // default: all 5 in order
 
-// Load maze config from Firebase
+// Audio config from Firebase
+let audioConfig = {
+  soundtracks: [{ id: 0, active: true }, { id: 1, active: true }, { id: 2, active: true }, { id: 3, active: true }],
+  context: { splash: 0, gameover: -1, leaderboard: -1 },
+  volumes: { music: 35, sfx: 50 },
+  sfx: { waka: true, death: true, ghost_eat: true, jingle: true, bounce: true, power: true }
+};
+
+// Load config from Firebase
 db.ref('maze_config').on('value', (snap) => {
   const val = snap.val();
   if (val && val.mazes) {
@@ -506,7 +514,19 @@ db.ref('maze_config').on('value', (snap) => {
       activeMazeOrder = active.map(m => m.id);
     }
   }
+  if (val && val.audio) {
+    if (val.audio.soundtracks) audioConfig.soundtracks = val.audio.soundtracks;
+    if (val.audio.context) audioConfig.context = { ...audioConfig.context, ...val.audio.context };
+    if (val.audio.volumes) audioConfig.volumes = { ...audioConfig.volumes, ...val.audio.volumes };
+    if (val.audio.sfx) audioConfig.sfx = { ...audioConfig.sfx, ...val.audio.sfx };
+  }
 });
+
+function isSfxEnabled(id) { return audioConfig.sfx[id] !== false; }
+function isSoundtrackActive(id) {
+  const st = audioConfig.soundtracks.find(s => s.id === id);
+  return st ? st.active : true;
+}
 
 function getMazeIndex() {
   const idx = (level - 1) % activeMazeOrder.length;
