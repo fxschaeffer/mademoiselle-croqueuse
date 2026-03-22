@@ -320,13 +320,14 @@ let lastTime = 0;
 let moveTimer = 0;
 const BASE_SPEED = 130; // ms per tile move
 
-// Fruit bonus items per level
+// Belgian bonus items per level
 const BONUS_FRUITS = [
-  { name: 'cerise', color: '#ff0040', points: 100 },
-  { name: 'fraise', color: '#ff4060', points: 300 },
-  { name: 'orange', color: '#ff8c00', points: 500 },
-  { name: 'pomme', color: '#00cc44', points: 700 },
-  { name: 'melon', color: '#44ff88', points: 1000 },
+  { name: 'biere', emoji: '🍺', points: 100 },
+  { name: 'gaufre', emoji: '🧇', points: 300 },
+  { name: 'frites', emoji: '🍟', points: 500 },
+  { name: 'chocolat', emoji: '🍫', points: 700 },
+  { name: 'diamant', emoji: '💎', points: 1000 },
+  { name: 'drapeau', emoji: '🇧🇪', points: 2000 },
 ];
 
 function getMazeIndex() { return (level - 1) % MAZES.length; }
@@ -885,20 +886,11 @@ function drawFruit() {
   const px = bonusItem.x * TILE + TILE / 2;
   const py = bonusItem.y * TILE + TILE / 2;
 
-  ctx.fillStyle = bonusItem.color;
-  ctx.beginPath();
-  ctx.arc(px, py + 2, 6, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#0a5';
-  ctx.fillRect(px - 1, py - 6, 2, 5);
-
-  // Glow
-  ctx.shadowColor = bonusItem.color;
-  ctx.shadowBlur = 8;
-  ctx.beginPath();
-  ctx.arc(px, py + 2, 6, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  // Draw emoji
+  ctx.font = (TILE - 4) + 'px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(bonusItem.emoji, px, py + 1);
 }
 
 function draw() {
