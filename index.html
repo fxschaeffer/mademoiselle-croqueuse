@@ -60,12 +60,19 @@
     font-size: 48px;
     margin-bottom: 20px;
   }
+  #gameContent {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
   #gameTitle {
     font-size: 28px;
     color: #ff69b4;
     text-shadow: 0 0 10px #ff69b4, 0 0 20px #ff1493;
     margin-bottom: 10px;
     letter-spacing: 3px;
+    text-align: center;
   }
   #hud {
     display: flex;
@@ -92,6 +99,7 @@
     margin-top: 12px;
     font-size: 13px;
     color: #666;
+    text-align: center;
   }
 </style>
 </head>
@@ -1233,8 +1241,6 @@ const gpPrevButtons = {};
 
 window.addEventListener('gamepadconnected', (e) => {
   gamepadConnected = true;
-  setMessage('Manette connectee : ' + e.gamepad.id.substring(0, 40));
-  setTimeout(() => { if (gameState === 'start') setMessage(''); }, 3000);
 });
 window.addEventListener('gamepaddisconnected', () => {
   gamepadConnected = false;
@@ -1359,7 +1365,7 @@ const gameContent = document.getElementById('gameContent');
 
 if (sessionStorage.getItem('croqueuse_auth') === 'ok') {
   lockScreen.classList.add('hidden');
-  gameContent.style.display = '';
+  gameContent.style.display = 'flex';
 }
 
 lockInput.addEventListener('keydown', (e) => {
@@ -1367,7 +1373,7 @@ lockInput.addEventListener('keydown', (e) => {
     if (lockInput.value === 'AvA') {
       sessionStorage.setItem('croqueuse_auth', 'ok');
       lockScreen.classList.add('hidden');
-      gameContent.style.display = '';
+      gameContent.style.display = 'flex';
       lockInput.value = '';
     } else {
       lockMsg.textContent = 'Mot de passe incorrect !';
