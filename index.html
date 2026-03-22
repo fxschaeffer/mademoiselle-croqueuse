@@ -194,10 +194,10 @@ const GHOST_NAMES = ['Ombre', 'Rosee', 'Azur', 'Ambre'];
 
 function initGhosts() {
   return [
-    { x: 14, y: 11, dir: 0, color: GHOST_COLORS[0], name: GHOST_NAMES[0], mode: 'scatter', home: {x:25,y:0}, inHouse: false, exitTimer: 0 },
-    { x: 13, y: 14, dir: 0, color: GHOST_COLORS[1], name: GHOST_NAMES[1], mode: 'scatter', home: {x:2,y:0}, inHouse: true, exitTimer: 3000 },
-    { x: 14, y: 14, dir: 2, color: GHOST_COLORS[2], name: GHOST_NAMES[2], mode: 'scatter', home: {x:25,y:30}, inHouse: true, exitTimer: 6000 },
-    { x: 15, y: 14, dir: 0, color: GHOST_COLORS[3], name: GHOST_NAMES[3], mode: 'scatter', home: {x:2,y:30}, inHouse: true, exitTimer: 9000 },
+    { x: 14, y: 11, prevX: 14, prevY: 11, lerpT: 1, dir: 0, color: GHOST_COLORS[0], name: GHOST_NAMES[0], mode: 'scatter', home: {x:25,y:0}, inHouse: false, exitTimer: 0 },
+    { x: 13, y: 14, prevX: 13, prevY: 14, lerpT: 1, dir: 0, color: GHOST_COLORS[1], name: GHOST_NAMES[1], mode: 'scatter', home: {x:2,y:0}, inHouse: true, exitTimer: 3000 },
+    { x: 14, y: 14, prevX: 14, prevY: 14, lerpT: 1, dir: 2, color: GHOST_COLORS[2], name: GHOST_NAMES[2], mode: 'scatter', home: {x:25,y:30}, inHouse: true, exitTimer: 6000 },
+    { x: 15, y: 14, prevX: 15, prevY: 14, lerpT: 1, dir: 0, color: GHOST_COLORS[3], name: GHOST_NAMES[3], mode: 'scatter', home: {x:2,y:30}, inHouse: true, exitTimer: 9000 },
   ];
 }
 
@@ -306,6 +306,9 @@ function moveGhost(ghost, idx) {
     if (ghost.exitTimer <= 0) {
       ghost.x = 14;
       ghost.y = 11;
+      ghost.prevX = 14;
+      ghost.prevY = 11;
+      ghost.lerpT = 1;
       ghost.inHouse = false;
       ghost.dir = 0;
     }
@@ -369,6 +372,10 @@ function update(dt) {
   player.mouthAngle += 0.08 * player.mouthDir;
   if (player.mouthAngle > 0.35) player.mouthDir = -1;
   if (player.mouthAngle < 0.02) player.mouthDir = 1;
+
+  // Save player position before moving
+  const prevPlayerX = player.x;
+  const prevPlayerY = player.y;
 
   // Move player
   let nx = player.x + DX[player.nextDir];
@@ -443,19 +450,45 @@ function update(dt) {
     }
   }
 
-  // Move ghosts (slower at start, speeds up with levels)
-  const ghostInterval = Math.max(1, 3 - Math.floor(level / 2));
-  if (animFrame % ghostInterval === 0) {
-    ghosts.forEach((g, i) => moveGhost(g, i));
-  }
+  // Save ghost positions before moving
+  const ghostPrevPos = ghosts.map(g => ({ x: g.x, y: g.y }));
 
-  // Collision detection
+  // Move ghosts with interpolation for smooth movement
+  const ghostInterval = Math.max(1, 3 - Math.floor(level / 2));
   ghosts.forEach((g, i) => {
     if (g.inHouse) return;
-    if (g.x === player.x && g.y === player.y) {
+    g.lerpT += 1 / ghostInterval;
+    if (g.lerpT >= 1) {
+      g.lerpT = 0;
+      g.prevX = g.x;
+      g.prevY = g.y;
+      moveGhost(g, i);
+      // Handle tunnel wrap for interpolation
+      if (Math.abs(g.x - g.prevX) > 2) g.prevX = g.x;
+    }
+  });
+
+  // Collision detection - check same tile OR swap (player crossed ghost path)
+  function checkCollision(g) {
+    // Same tile
+    if (g.x === player.x && g.y === player.y) return true;
+    return false;
+  }
+
+  // Also check if player and ghost swapped positions (crossed each other)
+  function checkSwap(g, prevPos) {
+    if (g.x === prevPlayerX && g.y === prevPlayerY &&
+        player.x === prevPos.x && player.y === prevPos.y) return true;
+    return false;
+  }
+
+  ghosts.forEach((g, i) => {
+    if (g.inHouse) return;
+    if (checkCollision(g) || checkSwap(g, ghostPrevPos[i])) {
       if (g.mode === 'frightened') {
         score += 200;
         g.x = 14; g.y = 14;
+        g.prevX = 14; g.prevY = 14; g.lerpT = 1;
         g.inHouse = true;
         g.exitTimer = 3000;
         g.mode = 'chase';
@@ -628,8 +661,13 @@ function drawBelgianStripes(ctx, px, py, r, wave, stripeMode) {
 }
 
 function drawGhost(g, ghostIdx) {
-  const px = g.x * TILE + TILE / 2;
-  const py = g.y * TILE + TILE / 2;
+  // Smooth interpolation between previous and current tile
+  const t = Math.min(g.lerpT, 1);
+  const smoothT = t * t * (3 - 2 * t); // smoothstep for extra smoothness
+  const drawX = g.prevX + (g.x - g.prevX) * smoothT;
+  const drawY = g.prevY + (g.y - g.prevY) * smoothT;
+  const px = drawX * TILE + TILE / 2;
+  const py = drawY * TILE + TILE / 2;
   const r = TILE / 2 - 1;
   const wave = Math.sin(animFrame * 0.4) * 2;
 
@@ -712,11 +750,10 @@ function draw() {
         ctx.arc(c * TILE + TILE / 2, r * TILE + TILE / 2, 2, 0, Math.PI * 2);
         ctx.fill();
       } else if (t === 3) {
-        // Power pellet - pulsating
-        const pulse = 3 + Math.sin(animFrame * 0.15) * 1.5;
+        // Power pellet - fixed size, 20% bigger
         ctx.fillStyle = '#ffcc88';
         ctx.beginPath();
-        ctx.arc(c * TILE + TILE / 2, r * TILE + TILE / 2, pulse, 0, Math.PI * 2);
+        ctx.arc(c * TILE + TILE / 2, r * TILE + TILE / 2, 5.4, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowColor = '#ffcc88';
         ctx.shadowBlur = 6;
