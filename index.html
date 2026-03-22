@@ -567,19 +567,57 @@ function update(dt) {
     });
   }
 
-  // Bonus fruit
+  // Bonus fruit (moving)
   if (!bonusActive && dotCount < totalDots - 70 && dotCount > 30) {
     bonusTimer += speed;
     if (bonusTimer > 15000) {
       bonusActive = true;
       bonusTimer = 0;
       const fi = Math.floor(Math.random() * BONUS_FRUITS.length);
-      bonusItem = { ...BONUS_FRUITS[fi], x: 14, y: 17, timer: 20000 };
+      bonusItem = { ...BONUS_FRUITS[fi], x: 14, y: 17, timer: 20000,
+        dir: Math.floor(Math.random() * 4), prevX: 14, prevY: 17, lerpT: 1,
+        moveCounter: 0 };
     }
   }
   if (bonusActive) {
     bonusItem.timer -= speed;
     if (bonusItem.timer <= 0) bonusActive = false;
+    // Move bonus every 4 frames (slower than ghosts)
+    bonusItem.moveCounter = (bonusItem.moveCounter || 0) + 1;
+    if (bonusItem.moveCounter >= 4) {
+      bonusItem.moveCounter = 0;
+      bonusItem.prevX = bonusItem.x;
+      bonusItem.prevY = bonusItem.y;
+      bonusItem.lerpT = 0;
+      // Try current direction
+      let bx = bonusItem.x + DX[bonusItem.dir];
+      let by = bonusItem.y + DY[bonusItem.dir];
+      // At intersection or wall: pick random new direction
+      const possibleDirs = [];
+      for (let d = 0; d < 4; d++) {
+        const tx = bonusItem.x + DX[d];
+        const ty = bonusItem.y + DY[d];
+        if (canMove(tx, ty) && d !== (bonusItem.dir + 2) % 4) possibleDirs.push(d);
+      }
+      if (!canMove(bx, by) || (possibleDirs.length > 1 && Math.random() < 0.4)) {
+        // Bounce / change direction
+        if (possibleDirs.length > 0) {
+          bonusItem.dir = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
+        } else {
+          bonusItem.dir = (bonusItem.dir + 2) % 4; // reverse
+        }
+        bx = bonusItem.x + DX[bonusItem.dir];
+        by = bonusItem.y + DY[bonusItem.dir];
+        if (!canMove(bx, by)) { bx = bonusItem.x; by = bonusItem.y; }
+        else { playBounceSound(); }
+      }
+      if (canMove(bx, by)) {
+        bonusItem.x = wrapX(bx); bonusItem.y = by;
+        if (Math.abs(bonusItem.x - bonusItem.prevX) > 2) bonusItem.prevX = bonusItem.x;
+      }
+    } else {
+      bonusItem.lerpT = Math.min(1, (bonusItem.lerpT || 0) + 0.25);
+    }
     if (player.x === bonusItem.x && player.y === bonusItem.y) {
       score += bonusItem.points;
       bonusActive = false;
@@ -883,11 +921,17 @@ function drawGhost(g, ghostIdx) {
 
 function drawFruit() {
   if (!bonusActive) return;
-  const px = bonusItem.x * TILE + TILE / 2;
-  const py = bonusItem.y * TILE + TILE / 2;
+  const t = bonusItem.lerpT || 1;
+  const ix = bonusItem.prevX + (bonusItem.x - bonusItem.prevX) * t;
+  const iy = bonusItem.prevY + (bonusItem.y - bonusItem.prevY) * t;
+  // Handle tunnel wrap for interpolation
+  let drawX = ix;
+  if (Math.abs(bonusItem.x - bonusItem.prevX) > 2) drawX = bonusItem.x;
+  const px = drawX * TILE + TILE / 2;
+  const py = iy * TILE + TILE / 2;
 
   // Draw emoji
-  ctx.font = (TILE - 4) + 'px serif';
+  ctx.font = (TILE - 2) + 'px serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(bonusItem.emoji, px, py + 1);
@@ -1021,6 +1065,24 @@ function drawStartScreen() {
 }
 
 // ========== HOUSE MUSIC ENGINE ==========
+// Bounce sound for moving bonus
+function playBounceSound() {
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, ac.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(400, ac.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.08, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.1);
+    osc.connect(gain);
+    gain.connect(ac.destination);
+    osc.start();
+    osc.stop(ac.currentTime + 0.1);
+  } catch(e) {}
+}
+
 const MusicEngine = (() => {
   let actx, masterGain, started = false, playing = false;
   let kickInterval, bassInterval, hihatInterval, melodyInterval, arpInterval;
