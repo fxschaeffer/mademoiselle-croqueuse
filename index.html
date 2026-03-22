@@ -195,11 +195,13 @@ const db = firebase.database();
   <div>Score: <span id="score">0</span></div>
   <div>Niveau: <span id="level">1</span></div>
   <div class="lives">Vies: <span id="lives"></span></div>
+  <div><span id="difficulty" style="font-size:11px"></span></div>
 </div>
 <canvas id="game" width="672" height="744"></canvas>
+<div id="bonusBar" style="width:672px;padding:4px 0;font-size:18px;min-height:28px;text-align:left"></div>
 <div id="message" id="msg"></div>
 <div id="leaderboard"><h3>🏆 TOP 10</h3><div id="leaderboardTable"></div></div>
-<div id="controls">Fleches / ZQSD / Manette pour bouger &bull; ESPACE / A pour commencer &bull; R / B pour recommencer &bull; M pour mute &bull; T pour changer la musique</div>
+<div id="controls">Fleches / ZQSD / Manette pour bouger &bull; ESPACE pour commencer &bull; R pour recommencer &bull; P pour pause &bull; M pour mute &bull; T pour la musique</div>
 
 <div id="initialsOverlay">
   <h2>NOUVEAU HIGH SCORE !</h2>
@@ -408,6 +410,8 @@ let nextExtraLifeIndex = 0;
 const EXTRA_LIFE_SCORES = [5000, 10000, 15000, 20000, 30000];
 // After 30000, every 10000
 let animFrame = 0;
+let paused = false;
+let collectedBonuses = []; // emojis of collected bonuses this game
 let levelTimer = 0; // ms elapsed in current level
 let deathTimer = 0; // ms elapsed in death animation
 let lastTime = 0;
@@ -499,6 +503,9 @@ function startGame() {
   bonusTimer = 0;
   nextExtraLifeIndex = 0;
   levelTimer = 0;
+  collectedBonuses = [];
+  paused = false;
+  updateBonusBar();
   resetMap();
   player = initPlayer();
   ghosts = initGhosts();
@@ -545,6 +552,17 @@ function updateHUD() {
 
 function setMessage(txt) {
   document.getElementById('message').textContent = txt;
+}
+
+function updateBonusBar() {
+  document.getElementById('bonusBar').textContent = collectedBonuses.join(' ');
+}
+
+function updateDifficulty(ghostInterval) {
+  const bars = Math.round((4 - Math.max(1.5, ghostInterval)) / 2.5 * 5);
+  let indicator = '';
+  for (let i = 0; i < 5; i++) indicator += i < bars ? '🔴' : '⚫';
+  document.getElementById('difficulty').textContent = indicator;
 }
 
 // Ghost AI
@@ -778,6 +796,8 @@ function update(dt) {
     if (bonusSameTile || bonusSwap) {
       score += bonusItem.points;
       scorePopups.push({ x: bonusItem.x, y: bonusItem.y, text: bonusItem.points.toString(), timer: 1500 });
+      collectedBonuses.push(bonusItem.emoji);
+      updateBonusBar();
       bonusActive = false;
     }
   }
@@ -817,6 +837,7 @@ function update(dt) {
   // Time pressure: ghosts speed up within a level (10% at 30s, 20% at 60s, 30% at 90s)
   const timePressure = levelTimer < 30000 ? 1 : levelTimer < 60000 ? 0.9 : levelTimer < 90000 ? 0.8 : 0.7;
   const ghostInterval = Math.max(1.5, baseGhostInterval * timePressure);
+  if (animFrame % 30 === 0) updateDifficulty(ghostInterval);
   ghosts.forEach((g, i) => {
     if (g.inHouse) {
       // Decrement exit timer for ghosts waiting in the house
@@ -1750,6 +1771,12 @@ document.addEventListener('keydown', (e) => {
     setTimeout(() => { if (gameState === 'playing' || gameState === 'start') setMessage(''); }, 2000);
     return;
   }
+  if (e.code === 'KeyP' && (gameState === 'playing' || paused)) {
+    paused = !paused;
+    if (paused) { MusicEngine.stop(); }
+    else { MusicEngine.start(); }
+    return;
+  }
   if (e.code === 'KeyR') {
     gameState = 'start';
     modeTimer = 0;
@@ -1872,6 +1899,21 @@ function gameLoop(time) {
 
   if (gameState === 'start') {
     drawStartScreen();
+  } else if (paused) {
+    draw();
+    // Draw PAUSE overlay
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#0ff';
+    ctx.font = 'bold 48px Courier New';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#0ff';
+    ctx.shadowBlur = 20;
+    ctx.fillText('PAUSE', canvas.width / 2, canvas.height / 2);
+    ctx.shadowBlur = 0;
+    ctx.font = '16px Courier New';
+    ctx.fillText('P pour reprendre', canvas.width / 2, canvas.height / 2 + 40);
+    ctx.textAlign = 'left';
   } else {
     if (gameState === 'dying') deathTimer += dt;
     update(dt);
