@@ -121,7 +121,7 @@
 </div>
 <canvas id="game" width="672" height="744"></canvas>
 <div id="message" id="msg"></div>
-<div id="controls">Fleches / ZQSD / Manette pour bouger &bull; ESPACE / A pour commencer &bull; R / B pour recommencer &bull; M / Select pour mute</div>
+<div id="controls">Fleches / ZQSD / Manette pour bouger &bull; ESPACE / A pour commencer &bull; R / B pour recommencer &bull; M pour mute &bull; T pour changer la musique</div>
 
 <script>
 const canvas = document.getElementById('game');
@@ -1274,12 +1274,13 @@ function playBounceSound() {
   } catch(e) {}
 }
 
+// ========== SOUNDTRACK SYSTEM ==========
+const SOUNDTRACK_NAMES = ['Arcade Remix', 'Pac Electro'];
+let currentSoundtrack = 0;
+
 const MusicEngine = (() => {
   let actx, masterGain, started = false, playing = false;
   let stepInterval;
-  const BPM = 130;
-  const beat = 60 / BPM;
-  const s16 = beat / 4;
   let frightMode = false;
   let step = 0;
 
@@ -1397,24 +1398,22 @@ const MusicEngine = (() => {
   const arpF = [494,587,698,494, 587,698,494,587, 523,659,784,659, 523,494,587,494];
 
   function doStep() {
+    const s16 = getS16();
     const s = step % 16;
     const phrase = Math.floor(step / 16) % 4;
 
     // --- DRUMS ---
-    // Kick: 4 on the floor + extra on beat 10 for drive
     if (s % 4 === 0 || s === 10) kick();
-    // Hi-hat: every 16th, open on offbeats
     hihat(s % 2 === 1);
-    // Snare: beats 4, 12
     if (s === 4 || s === 12) snare();
 
-    // --- MELODY (square wave, 16th note resolution) ---
+    // --- MELODY ---
     const melSeq = frightMode ? melF :
       phrase === 0 ? melA : phrase === 1 ? melB : phrase === 2 ? melC : melD;
     const melNote = melSeq[s];
     if (melNote > 0) note(melNote, 'square', 0.07, s16 * 1.4, 2500);
 
-    // --- BASS (sawtooth, heavy) ---
+    // --- BASS ---
     const bassSeq = frightMode ? bassF : (phrase < 2 ? bassA : bassB);
     const bassNote = bassSeq[s];
     if (bassNote > 0) {
@@ -1432,7 +1431,7 @@ const MusicEngine = (() => {
       osc.start(t); osc.stop(t + s16 * 2);
     }
 
-    // --- ARP (triangle, bubbly background) ---
+    // --- ARP ---
     const arpSeq = frightMode ? arpF : arpA;
     const arpNote = arpSeq[s];
     if (arpNote > 0) note(arpNote * 0.5, 'triangle', 0.03, s16 * 0.6, 4000);
@@ -1457,10 +1456,108 @@ const MusicEngine = (() => {
     clearInterval(stepInterval);
   }
 
+  // ========== SOUNDTRACK 2: Pac Electro (darker, heavier, more groove) ==========
+  // Inspired by modern Pac-Man remixes - punchy, driving, C minor
+  const mel2A = [523,0,622,0, 523,466,0,523, 622,0,698,0, 622,523,466,0];
+  const mel2B = [698,0,622,698, 784,0,698,0, 622,0,523,0, 466,523,622,0];
+  const mel2C = [784,0,698,622, 698,0,784,0, 880,0,784,698, 622,0,698,784];
+  const mel2D = [1047,0,932,0, 784,0,698,784, 932,0,784,0, 698,622,523,0];
+  const mel2F = [294,0,349,0, 330,294,0,262, 294,0,330,0, 262,0,247,262];
+  const bass2A = [131,0,131,131, 0,131,0,0, 131,0,156,0, 131,131,0,131];
+  const bass2B = [156,0,156,0, 131,0,131,156, 0,175,0,156, 131,0,131,0];
+  const bass2F = [98,0,98,98, 0,98,0,0, 93,0,98,0, 104,0,98,98];
+  const arp2A = [262,311,392,523, 392,311,262,311, 262,349,466,523, 466,349,262,349];
+  const arp2F = [247,294,349,466, 349,294,247,294, 262,311,392,466, 392,311,262,311];
+
+  function doStep2() {
+    const BPM2 = 130, beat2 = 60/BPM2, s2 = beat2/4;
+    const s = step % 16;
+    const phrase = Math.floor(step / 16) % 4;
+
+    // Heavier kick pattern: 4otf + ghost notes
+    if (s % 4 === 0) kick();
+    if (s === 6 || s === 14) { // Ghost kicks
+      const t=actx.currentTime; const o=actx.createOscillator(); o.type='sine';
+      o.frequency.setValueAtTime(100,t); o.frequency.exponentialRampToValueAtTime(25,t+0.06);
+      const g=actx.createGain(); g.gain.setValueAtTime(0.25,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.08);
+      o.connect(g); g.connect(masterGain); o.start(t); o.stop(t+0.08);
+    }
+    // Hi-hat: every 16th with accents
+    hihat(s % 4 === 2);
+    // Snare on 4, 12 + clap layer
+    if (s === 4 || s === 12) { snare(); hihat(true); }
+
+    // Melody (square, more aggressive filter)
+    const mSeq = frightMode ? mel2F :
+      phrase===0 ? mel2A : phrase===1 ? mel2B : phrase===2 ? mel2C : mel2D;
+    const mN = mSeq[s];
+    if (mN > 0) note(mN, 'square', 0.08, s2 * 1.3, 2000);
+
+    // Bass (sawtooth, dirtier, more resonant)
+    const bSeq = frightMode ? bass2F : (phrase < 2 ? bass2A : bass2B);
+    const bN = bSeq[s];
+    if (bN > 0) {
+      const t=actx.currentTime; const o=actx.createOscillator();
+      o.type='sawtooth'; o.frequency.value=bN;
+      const f=actx.createBiquadFilter(); f.type='lowpass'; f.Q.value=10;
+      f.frequency.setValueAtTime(1600,t); f.frequency.exponentialRampToValueAtTime(150,t+s2*1.5);
+      const g=actx.createGain(); g.gain.setValueAtTime(0.22,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+s2*2);
+      o.connect(f); f.connect(g); g.connect(masterGain); o.start(t); o.stop(t+s2*2);
+    }
+
+    // Arp (triangle, faster pattern)
+    const aSeq = frightMode ? arp2F : arp2A;
+    const aN = aSeq[s];
+    if (aN > 0) note(aN * 0.5, 'triangle', 0.035, s2 * 0.5, 3500);
+
+    // Extra: sub bass on strong beats
+    if (s % 8 === 0) {
+      const t=actx.currentTime; const o=actx.createOscillator();
+      o.type='sine'; o.frequency.value=frightMode?49:65.5;
+      const g=actx.createGain(); g.gain.setValueAtTime(0.2,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+beat2*0.8);
+      o.connect(g); g.connect(masterGain); o.start(t); o.stop(t+beat2);
+    }
+
+    step++;
+    if (step >= 64) step = 0;
+  }
+
+  function getS16() {
+    return 60 / 130 / 4; // both soundtracks at 130 BPM
+  }
+
+  function start() {
+    init();
+    if (playing) return;
+    playing = true;
+    step = 0;
+    if (actx.state === 'suspended') actx.resume();
+    const s16 = getS16();
+    stepInterval = setInterval(() => {
+      if (currentSoundtrack === 0) doStep();
+      else doStep2();
+    }, s16 * 1000);
+    if (currentSoundtrack === 0) doStep(); else doStep2();
+  }
+
+  function stop() {
+    if (!playing) return;
+    playing = false;
+    clearInterval(stepInterval);
+  }
+
+  function restart() {
+    const wasPlaying = playing;
+    stop();
+    if (wasPlaying) start();
+  }
+
   function setFright(on) { frightMode = on; }
   function setVolume(v) { if (masterGain) masterGain.gain.value = v; }
 
-  return { start, stop, setFright, setVolume, init };
+  return { start, stop, restart, setFright, setVolume, init };
 })();
 
 // Mute toggle with M key
@@ -1480,6 +1577,13 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') {
     musicMuted = !musicMuted;
     MusicEngine.setVolume(musicMuted ? 0 : 0.35);
+    return;
+  }
+  if (e.code === 'KeyT') {
+    currentSoundtrack = (currentSoundtrack + 1) % SOUNDTRACK_NAMES.length;
+    MusicEngine.restart();
+    setMessage('♪ ' + SOUNDTRACK_NAMES[currentSoundtrack]);
+    setTimeout(() => { if (gameState === 'playing' || gameState === 'start') setMessage(''); }, 2000);
     return;
   }
   if (e.code === 'KeyR') {
