@@ -17,6 +17,48 @@
     color: #fff;
     overflow: hidden;
   }
+  #lockScreen {
+    position: fixed;
+    inset: 0;
+    background: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+  }
+  #lockScreen.hidden { display: none; }
+  #lockScreen h1 {
+    font-size: 32px;
+    color: #ff69b4;
+    text-shadow: 0 0 10px #ff69b4, 0 0 20px #ff1493;
+    margin-bottom: 30px;
+    letter-spacing: 3px;
+  }
+  #lockScreen input {
+    background: #222;
+    border: 2px solid #ff69b4;
+    border-radius: 8px;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    font-size: 24px;
+    padding: 12px 20px;
+    text-align: center;
+    outline: none;
+    width: 200px;
+  }
+  #lockScreen input:focus { border-color: #ffd700; box-shadow: 0 0 15px rgba(255,215,0,0.4); }
+  #lockScreen .lock-msg {
+    margin-top: 15px;
+    font-size: 14px;
+    color: #666;
+    min-height: 20px;
+  }
+  #lockScreen .lock-err { color: #ff4444; }
+  #lockScreen .lock-icon {
+    font-size: 48px;
+    margin-bottom: 20px;
+  }
   #gameTitle {
     font-size: 28px;
     color: #ff69b4;
@@ -53,6 +95,13 @@
 </style>
 </head>
 <body>
+<div id="lockScreen">
+  <div class="lock-icon">&#x1F512;</div>
+  <h1>MADEMOISELLE CROQUEUSE</h1>
+  <input type="password" id="lockInput" placeholder="Mot de passe" autofocus>
+  <div class="lock-msg" id="lockMsg">Entre le mot de passe pour jouer</div>
+</div>
+<div id="gameContent" style="display:none">
 <div id="gameTitle">MADEMOISELLE CROQUEUSE</div>
 <div id="hud">
   <div>Score: <span id="score">0</span></div>
@@ -1001,6 +1050,41 @@ function gameLoop(time) {
 requestAnimationFrame((time) => {
   lastTime = time;
   gameLoop(time);
+});
+</script>
+</div>
+<script>
+// Password protection
+const PASS_HASH = '7e8c1b2a';
+function simpleHash(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(16);
+}
+const lockInput = document.getElementById('lockInput');
+const lockMsg = document.getElementById('lockMsg');
+const lockScreen = document.getElementById('lockScreen');
+const gameContent = document.getElementById('gameContent');
+
+if (sessionStorage.getItem('croqueuse_auth') === 'ok') {
+  lockScreen.classList.add('hidden');
+  gameContent.style.display = '';
+}
+
+lockInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    if (lockInput.value === 'AvA') {
+      sessionStorage.setItem('croqueuse_auth', 'ok');
+      lockScreen.classList.add('hidden');
+      gameContent.style.display = '';
+      lockInput.value = '';
+    } else {
+      lockMsg.textContent = 'Mot de passe incorrect !';
+      lockMsg.classList.add('lock-err');
+      lockInput.value = '';
+      lockInput.focus();
+    }
+  }
 });
 </script>
 </body>
