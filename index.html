@@ -1425,73 +1425,75 @@ function drawStartScreen() {
   ctx.arc(cx - 6, 302, 5, 0, Math.PI * 2);
   ctx.fill();
 
-  // Animated ghosts parade - they move left to right
-  const ghostParadeX = (Date.now() * 0.04) % (canvas.width + 200) - 100;
+  // Animated ghosts parade - big, slow, readable
+  const paradeSpeed = Date.now() * 0.02;
+  const paradeTotal = 4 * 80 + 200;
+  const ghostParadeX = (paradeSpeed % (canvas.width + paradeTotal)) - paradeTotal / 2;
   GHOST_COLORS.forEach((color, i) => {
-    const gx = ghostParadeX + i * 45;
-    const gy = 390;
-    const gr = 12;
-    const wave = Math.sin(Date.now() * 0.008 + i) * 2;
-    if (gx < -30 || gx > canvas.width + 30) return;
+    const gx = ghostParadeX + i * 80;
+    const gy = 400;
+    const gr = 22;
+    const wave = Math.sin(Date.now() * 0.006 + i) * 3;
+    if (gx < -40 || gx > canvas.width + 40) return;
     drawBelgianStripes(ctx, gx, gy, gr, wave, GHOST_STRIPE_MODE[i]);
     ghostBodyPath(ctx, gx, gy, gr, wave);
     ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
     // Eyes looking right (direction of movement)
     ctx.fillStyle = '#fff';
     ctx.beginPath();
-    ctx.ellipse(gx - 4, gy - 3, 3.5, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.ellipse(gx - 6, gy - 5, 6, 7, 0, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath();
-    ctx.ellipse(gx + 4, gy - 3, 3.5, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.ellipse(gx + 6, gy - 5, 6, 7, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#222';
     ctx.beginPath();
-    ctx.arc(gx - 2.5, gy - 2, 2, 0, Math.PI * 2);
-    ctx.arc(gx + 5.5, gy - 2, 2, 0, Math.PI * 2);
+    ctx.arc(gx - 4, gy - 4, 3.5, 0, Math.PI * 2);
+    ctx.arc(gx + 8, gy - 4, 3.5, 0, Math.PI * 2);
     ctx.fill();
-    // Distinctive features
+    // Distinctive features (scaled up)
     if (i === 0) { // Diknek: angry eyebrows
-      ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(gx - 7, gy - 7); ctx.lineTo(gx - 2, gy - 5.5); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(gx + 7, gy - 7); ctx.lineTo(gx + 2, gy - 5.5); ctx.stroke();
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(gx - 12, gy - 12); ctx.lineTo(gx - 3, gy - 9); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(gx + 12, gy - 12); ctx.lineTo(gx + 3, gy - 9); ctx.stroke();
     } else if (i === 1) { // Chicki: eyelashes
-      ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
-      [-5,-3,3,5].forEach(ox => { ctx.beginPath(); ctx.moveTo(gx+ox, gy-7); ctx.lineTo(gx+ox, gy-9); ctx.stroke(); });
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+      [-8,-5,5,8].forEach(ox => { ctx.beginPath(); ctx.moveTo(gx+ox, gy-12); ctx.lineTo(gx+ox, gy-16); ctx.stroke(); });
     } else if (i === 2) { // Tintin: quiff
       ctx.fillStyle = '#ff8833';
       ctx.beginPath();
-      ctx.moveTo(gx - 1, gy - gr - 1);
-      ctx.quadraticCurveTo(gx + 2, gy - gr - 8, gx + 5, gy - gr - 6);
-      ctx.quadraticCurveTo(gx + 3, gy - gr - 3, gx + 1, gy - gr - 1);
+      ctx.moveTo(gx - 2, gy - gr - 1);
+      ctx.quadraticCurveTo(gx + 4, gy - gr - 14, gx + 9, gy - gr - 10);
+      ctx.quadraticCurveTo(gx + 6, gy - gr - 4, gx + 2, gy - gr - 1);
       ctx.fill();
     } else if (i === 3) { // Lambic: sleepy eyelids
       ctx.fillStyle = '#000';
-      ctx.beginPath(); ctx.ellipse(gx - 4, gy - 5, 4, 2.5, 0, Math.PI, 0); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(gx + 4, gy - 5, 4, 2.5, 0, Math.PI, 0); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(gx - 6, gy - 8, 7, 4, 0, Math.PI, 0); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(gx + 6, gy - 8, 7, 4, 0, Math.PI, 0); ctx.fill();
     }
-    // Name above ghost
+    // Name below ghost
     ctx.fillStyle = '#0ff';
-    ctx.shadowColor = '#0ff'; ctx.shadowBlur = 4;
-    ctx.font = '9px Courier New';
+    ctx.shadowColor = '#0ff'; ctx.shadowBlur = 6;
+    ctx.font = 'bold 14px Courier New';
     ctx.textAlign = 'center';
-    ctx.fillText(GHOST_NAMES[i], gx, gy + gr + 14);
+    ctx.fillText(GHOST_NAMES[i], gx, gy + gr + 18);
     ctx.shadowBlur = 0;
   });
 
-  // Static character display below parade
+  // Instructions below parade
   ctx.textAlign = 'center';
   ctx.fillStyle = '#0ff';
   ctx.shadowColor = '#0ff';
   ctx.shadowBlur = 8;
   ctx.font = '18px Courier New';
   const blink = Math.floor(Date.now() / 600) % 2;
-  if (blink) ctx.fillText('APPUYEZ SUR ESPACE', canvas.width / 2, 470);
+  if (blink) ctx.fillText('APPUYEZ SUR ESPACE', canvas.width / 2, 490);
 
   ctx.fillStyle = '#0ff';
   ctx.font = '14px Courier New';
-  ctx.fillText('Clavier ou Manette', canvas.width / 2, 510);
+  ctx.fillText('Clavier ou Manette', canvas.width / 2, 530);
   ctx.font = '12px Courier New';
-  ctx.fillText('T pour changer la musique', canvas.width / 2, 535);
+  ctx.fillText('T pour changer la musique', canvas.width / 2, 555);
   ctx.shadowBlur = 0;
   ctx.textAlign = 'left';
 }
