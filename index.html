@@ -79,7 +79,8 @@
     justify-content: space-between;
     width: 672px;
     padding: 8px 0;
-    font-size: 16px;
+    font-size: 13px;
+    color: #666;
   }
   #hud span { color: #ffd700; }
   #hud .lives { color: #ff69b4; }
@@ -1037,7 +1038,7 @@ function draw() {
       } else if (t === 2) {
         ctx.fillStyle = mc.dotColor;
         ctx.beginPath();
-        ctx.arc(c * TILE + TILE / 2, r * TILE + TILE / 2, 2, 0, Math.PI * 2);
+        ctx.arc(c * TILE + TILE / 2, r * TILE + TILE / 2, 4, 0, Math.PI * 2);
         ctx.fill();
       } else if (t === 3) {
         // Power pellet - blinking like original
