@@ -79,11 +79,11 @@
     justify-content: space-between;
     width: 672px;
     padding: 8px 0;
-    font-size: 18px;
-    color: #ccc;
+    font-size: 23px;
+    color: #fff;
   }
   #hud span { color: #ffd700; }
-  #hud .lives { color: #ff69b4; }
+  #hud .lives { color: #ff69b4; font-size: 26px; }
   canvas {
     border: 3px solid #333;
     border-radius: 4px;
@@ -322,6 +322,7 @@ let nextExtraLifeIndex = 0;
 const EXTRA_LIFE_SCORES = [5000, 10000, 15000, 20000, 30000];
 // After 30000, every 10000
 let animFrame = 0;
+let levelTimer = 0; // ms elapsed in current level
 let lastTime = 0;
 let moveTimer = 0;
 const BASE_SPEED = 130; // ms per tile move
@@ -410,6 +411,7 @@ function startGame() {
   bonusActive = false;
   bonusTimer = 0;
   nextExtraLifeIndex = 0;
+  levelTimer = 0;
   resetMap();
   player = initPlayer();
   ghosts = initGhosts();
@@ -428,6 +430,7 @@ function nextLevel() {
   frightDuration = Math.max(3000, 8000 - level * 500);
   bonusActive = false;
   bonusTimer = 0;
+  levelTimer = 0;
   resetMap();
   player = initPlayer();
   ghosts = initGhosts();
@@ -437,9 +440,16 @@ function nextLevel() {
 function updateHUD() {
   document.getElementById('score').textContent = score;
   document.getElementById('level').textContent = level;
-  let livesStr = '';
-  for (let i = 0; i < lives; i++) livesStr += '\u2764 ';
-  document.getElementById('lives').textContent = livesStr;
+  let livesHTML = '';
+  for (let i = 0; i < lives; i++) {
+    livesHTML += '<svg width="26" height="26" viewBox="0 0 26 26" style="vertical-align:middle;margin:0 2px">' +
+      '<circle cx="13" cy="13" r="11" fill="#ffdd00"/>' +
+      '<path d="M13,13 L24,8 L24,18 Z" fill="#000"/>' +
+      '<circle cx="11" cy="7" r="2.5" fill="#ff69b4"/>' +
+      '<circle cx="14" cy="5" r="2" fill="#ff69b4"/>' +
+      '</svg>';
+  }
+  document.getElementById('lives').innerHTML = livesHTML;
 }
 
 function setMessage(txt) {
@@ -548,6 +558,7 @@ const MODE_SCHEDULE = [7000, 20000, 7000, 20000, 5000, 20000, 5000]; // scatter/
 function update(dt) {
   if (gameState !== 'playing') return;
 
+  levelTimer += dt;
   moveTimer += dt;
   // Player speed: gentle increase, stays comfortable
   const speed = BASE_SPEED - Math.min(level * 3, 25);
@@ -710,8 +721,11 @@ function update(dt) {
 
   // Move ghosts with interpolation for smooth movement
   // Casual-friendly: ghosts are always slower than player
-  // Level 1-3: every 4 frames, Level 4-6: every 3, Level 7-10: every 2.5ish, Level 11+: every 2
-  const ghostInterval = level <= 3 ? 4 : level <= 6 ? 3 : level <= 10 ? 2.5 : 2;
+  // Base speed by level
+  const baseGhostInterval = level <= 3 ? 4 : level <= 6 ? 3 : level <= 10 ? 2.5 : 2;
+  // Time pressure: ghosts speed up within a level (10% at 30s, 20% at 60s, 30% at 90s)
+  const timePressure = levelTimer < 30000 ? 1 : levelTimer < 60000 ? 0.9 : levelTimer < 90000 ? 0.8 : 0.7;
+  const ghostInterval = Math.max(1.5, baseGhostInterval * timePressure);
   ghosts.forEach((g, i) => {
     if (g.inHouse) {
       // Decrement exit timer for ghosts waiting in the house
