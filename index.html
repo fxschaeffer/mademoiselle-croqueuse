@@ -254,6 +254,7 @@ function googleSignIn() {
   <div class="lb-section"><h3>🎮 Classement Arcade</h3><div id="lbArcade">Pas encore de scores</div></div>
 </div>
 <button id="googleBtn" onclick="googleSignIn()">🔗 Connexion Google</button>
+<a href="leaderboard.html" style="display:inline-block;margin:8px;color:#0ff;font-family:'Courier New',monospace;font-size:13px;text-decoration:none;border:1px solid #333;padding:6px 14px;border-radius:6px;">🏆 Classements complets</a>
 <div id="controls">Fleches / ZQSD / Manette pour bouger &bull; ESPACE pour commencer &bull; R pour recommencer &bull; P pour pause &bull; M pour mute &bull; T pour la musique</div>
 
 <div id="initialsOverlay">
@@ -463,6 +464,7 @@ let player, ghosts, frightTimer, frightDuration;
 let bonusItem, bonusTimer, bonusActive;
 let ghostsEatenThisFright = 0;
 let scorePopups = []; // {x, y, text, timer}
+let highScore = parseInt(localStorage.getItem('mc_highscore') || '0');
 let nextExtraLifeIndex = 0;
 const EXTRA_LIFE_SCORES = [5000, 10000, 15000, 20000, 30000];
 // After 30000, every 10000
@@ -981,7 +983,8 @@ function update(dt) {
           playDeathSound();
           setTimeout(() => {
             gameState = 'gameover';
-            setMessage('GAME OVER ! Appuyez sur R pour recommencer');
+            if (score > highScore) { highScore = score; localStorage.setItem('mc_highscore', highScore); }
+            setMessage('');
             saveScore(score);
           }, 2000);
         } else {
@@ -1422,69 +1425,158 @@ function drawStartScreen() {
   ctx.arc(cx - 6, 302, 5, 0, Math.PI * 2);
   ctx.fill();
 
-  // Ghosts preview with Belgian stripes + distinctive features
+  // Animated ghosts parade - they move left to right
+  const ghostParadeX = (Date.now() * 0.04) % (canvas.width + 200) - 100;
   GHOST_COLORS.forEach((color, i) => {
-    const gx = cx - 60 + i * 40;
+    const gx = ghostParadeX + i * 45;
+    const gy = 390;
     const gr = 12;
-    drawBelgianStripes(ctx, gx, 400, gr, 0, GHOST_STRIPE_MODE[i]);
-    ghostBodyPath(ctx, gx, 400, gr, 0);
+    const wave = Math.sin(Date.now() * 0.008 + i) * 2;
+    if (gx < -30 || gx > canvas.width + 30) return;
+    drawBelgianStripes(ctx, gx, gy, gr, wave, GHOST_STRIPE_MODE[i]);
+    ghostBodyPath(ctx, gx, gy, gr, wave);
     ctx.strokeStyle = 'rgba(255,255,255,0.4)';
     ctx.lineWidth = 1;
     ctx.stroke();
-    // Eyes
+    // Eyes looking right (direction of movement)
     ctx.fillStyle = '#fff';
     ctx.beginPath();
-    ctx.arc(gx - 4, 396, 3, 0, Math.PI * 2);
-    ctx.arc(gx + 4, 396, 3, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.ellipse(gx - 4, gy - 3, 3.5, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(gx + 4, gy - 3, 3.5, 4, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#222';
     ctx.beginPath();
-    ctx.arc(gx - 3, 397, 1.5, 0, Math.PI * 2);
-    ctx.arc(gx + 5, 397, 1.5, 0, Math.PI * 2);
+    ctx.arc(gx - 2.5, gy - 2, 2, 0, Math.PI * 2);
+    ctx.arc(gx + 5.5, gy - 2, 2, 0, Math.PI * 2);
     ctx.fill();
     // Distinctive features
     if (i === 0) { // Diknek: angry eyebrows
       ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(gx - 7, 392); ctx.lineTo(gx - 2, 394); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(gx + 7, 392); ctx.lineTo(gx + 2, 394); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(gx - 7, gy - 7); ctx.lineTo(gx - 2, gy - 5.5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(gx + 7, gy - 7); ctx.lineTo(gx + 2, gy - 5.5); ctx.stroke();
     } else if (i === 1) { // Chicki: eyelashes
       ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(gx - 5, 393); ctx.lineTo(gx - 5, 391); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(gx - 3, 392.5); ctx.lineTo(gx - 3, 390.5); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(gx + 3, 392.5); ctx.lineTo(gx + 3, 390.5); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(gx + 5, 393); ctx.lineTo(gx + 5, 391); ctx.stroke();
-    } else if (i === 2) { // Tintin: orange quiff
+      [-5,-3,3,5].forEach(ox => { ctx.beginPath(); ctx.moveTo(gx+ox, gy-7); ctx.lineTo(gx+ox, gy-9); ctx.stroke(); });
+    } else if (i === 2) { // Tintin: quiff
       ctx.fillStyle = '#ff8833';
       ctx.beginPath();
-      ctx.moveTo(gx - 1, 400 - gr - 1);
-      ctx.quadraticCurveTo(gx + 2, 400 - gr - 7, gx + 5, 400 - gr - 5);
-      ctx.quadraticCurveTo(gx + 3, 400 - gr - 2, gx + 1, 400 - gr - 1);
+      ctx.moveTo(gx - 1, gy - gr - 1);
+      ctx.quadraticCurveTo(gx + 2, gy - gr - 8, gx + 5, gy - gr - 6);
+      ctx.quadraticCurveTo(gx + 3, gy - gr - 3, gx + 1, gy - gr - 1);
       ctx.fill();
     } else if (i === 3) { // Lambic: sleepy eyelids
       ctx.fillStyle = '#000';
-      ctx.beginPath(); ctx.ellipse(gx - 4, 395, 3.5, 2, 0, Math.PI, 0); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(gx + 4, 395, 3.5, 2, 0, Math.PI, 0); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(gx - 4, gy - 5, 4, 2.5, 0, Math.PI, 0); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(gx + 4, gy - 5, 4, 2.5, 0, Math.PI, 0); ctx.fill();
     }
-    // Ghost name below
+    // Name above ghost
     ctx.fillStyle = '#0ff';
     ctx.shadowColor = '#0ff'; ctx.shadowBlur = 4;
     ctx.font = '9px Courier New';
     ctx.textAlign = 'center';
-    ctx.fillText(GHOST_NAMES[i], gx, 420);
+    ctx.fillText(GHOST_NAMES[i], gx, gy + gr + 14);
     ctx.shadowBlur = 0;
   });
 
+  // Static character display below parade
+  ctx.textAlign = 'center';
   ctx.fillStyle = '#0ff';
   ctx.shadowColor = '#0ff';
   ctx.shadowBlur = 8;
   ctx.font = '18px Courier New';
   const blink = Math.floor(Date.now() / 600) % 2;
-  if (blink) ctx.fillText('APPUYEZ SUR ESPACE', canvas.width / 2, 490);
+  if (blink) ctx.fillText('APPUYEZ SUR ESPACE', canvas.width / 2, 470);
 
   ctx.fillStyle = '#0ff';
-  ctx.font = '18px Courier New';
-  ctx.fillText('Clavier ou Manette', canvas.width / 2, 540);
+  ctx.font = '14px Courier New';
+  ctx.fillText('Clavier ou Manette', canvas.width / 2, 510);
+  ctx.font = '12px Courier New';
+  ctx.fillText('T pour changer la musique', canvas.width / 2, 535);
   ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+}
+
+function drawGameOverScreen() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const cx = canvas.width / 2;
+  const t = Date.now() * 0.003;
+
+  // Title with pulsing glow
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ff1744';
+  ctx.shadowColor = '#ff1744';
+  ctx.shadowBlur = 10 + Math.sin(t) * 5;
+  ctx.font = 'bold 42px Courier New';
+  ctx.fillText('GAME OVER', cx, 130);
+  ctx.shadowBlur = 0;
+
+  // Score
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 20px Courier New';
+  ctx.fillText('Score Final', cx, 200);
+  ctx.font = 'bold 48px Courier New';
+  ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 10;
+  ctx.fillText(score.toString(), cx, 250);
+  ctx.shadowBlur = 0;
+
+  // High score
+  const isNewHigh = score >= highScore;
+  if (isNewHigh) {
+    ctx.fillStyle = '#ff69b4';
+    ctx.font = 'bold 16px Courier New';
+    ctx.shadowColor = '#ff69b4'; ctx.shadowBlur = 8;
+    ctx.fillText('NOUVEAU RECORD !', cx, 285);
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.fillStyle = '#888';
+    ctx.font = '14px Courier New';
+    ctx.fillText('Meilleur: ' + highScore, cx, 285);
+  }
+
+  // Level reached
+  ctx.fillStyle = '#0ff';
+  ctx.font = '18px Courier New';
+  ctx.fillText('Niveau atteint: ' + level, cx, 330);
+
+  // Bonus collected
+  if (collectedBonuses.length > 0) {
+    ctx.font = '16px Courier New';
+    ctx.fillStyle = '#888';
+    ctx.fillText('Bonus collectes:', cx, 375);
+    ctx.font = '24px serif';
+    ctx.fillText(collectedBonuses.join(' '), cx, 405);
+  }
+
+  // Ghost parade (animated)
+  const paradeX = (Date.now() * 0.03) % (canvas.width + 200) - 100;
+  GHOST_COLORS.forEach((c, i) => {
+    const gx = paradeX + i * 40;
+    const gy = 460;
+    const gr = 10;
+    const wave = Math.sin(Date.now() * 0.008 + i) * 2;
+    if (gx < -20 || gx > canvas.width + 20) return;
+    drawBelgianStripes(ctx, gx, gy, gr, wave, GHOST_STRIPE_MODE[i]);
+    ghostBodyPath(ctx, gx, gy, gr, wave);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(gx - 3, gy - 2, 2.5, 0, Math.PI * 2); ctx.arc(gx + 3, gy - 2, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#222';
+    ctx.beginPath(); ctx.arc(gx - 2, gy - 1, 1.5, 0, Math.PI * 2); ctx.arc(gx + 4, gy - 1, 1.5, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // Restart prompt
+  ctx.fillStyle = '#0ff';
+  ctx.shadowColor = '#0ff'; ctx.shadowBlur = 8;
+  ctx.font = '16px Courier New';
+  const blink = Math.floor(Date.now() / 600) % 2;
+  if (blink) ctx.fillText('R pour recommencer', cx, 530);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#666';
+  ctx.font = '12px Courier New';
+  ctx.fillText('ESPACE pour le menu', cx, 560);
   ctx.textAlign = 'left';
 }
 
@@ -1534,36 +1626,9 @@ function playWakaSound() {
   } catch(e) {}
 }
 
-// Ghost siren (ambient wooOOOooo)
-let sirenCtx, sirenOsc, sirenGain, sirenActive = false;
-function startSiren() {
-  if (sirenActive || musicMuted) return;
-  try {
-    if (!sirenCtx) sirenCtx = new (window.AudioContext || window.webkitAudioContext)();
-    sirenOsc = sirenCtx.createOscillator();
-    sirenGain = sirenCtx.createGain();
-    sirenOsc.type = 'sine';
-    sirenOsc.frequency.setValueAtTime(200, sirenCtx.currentTime);
-    // Create wobble: oscillate between 200-400Hz over 0.5s, repeating
-    const now = sirenCtx.currentTime;
-    for (let i = 0; i < 600; i++) {
-      const t = now + i * 0.5;
-      sirenOsc.frequency.linearRampToValueAtTime(i % 2 === 0 ? 400 : 200, t + 0.5);
-    }
-    sirenGain.gain.setValueAtTime(0.03, sirenCtx.currentTime);
-    sirenOsc.connect(sirenGain);
-    sirenGain.connect(sirenCtx.destination);
-    sirenOsc.start();
-    sirenActive = true;
-  } catch(e) {}
-}
-function stopSiren() {
-  if (!sirenActive) return;
-  try {
-    sirenOsc.stop();
-    sirenActive = false;
-  } catch(e) { sirenActive = false; }
-}
+// Siren removed
+function startSiren() {}
+function stopSiren() {}
 
 // Sound when eating a ghost
 let eatGhostCtx;
@@ -2025,6 +2090,13 @@ document.addEventListener('keydown', (e) => {
       return;
     }
   }
+  if (gameState === 'gameover') {
+    if (e.code === 'Space') {
+      gameState = 'start';
+      setMessage('');
+      return;
+    }
+  }
   if (e.code === 'KeyM') {
     musicMuted = !musicMuted;
     MusicEngine.setVolume(musicMuted ? 0 : 0.35);
@@ -2166,6 +2238,8 @@ function gameLoop(time) {
 
   if (gameState === 'start') {
     drawStartScreen();
+  } else if (gameState === 'gameover') {
+    drawGameOverScreen();
   } else if (paused) {
     draw();
     // Draw PAUSE overlay
