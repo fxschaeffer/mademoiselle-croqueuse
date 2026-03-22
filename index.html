@@ -573,7 +573,7 @@ function update(dt) {
     if (bonusTimer > 15000) {
       bonusActive = true;
       bonusTimer = 0;
-      const fi = Math.min(level - 1, BONUS_FRUITS.length - 1);
+      const fi = Math.floor(Math.random() * BONUS_FRUITS.length);
       bonusItem = { ...BONUS_FRUITS[fi], x: 14, y: 17, timer: 20000 };
     }
   }
