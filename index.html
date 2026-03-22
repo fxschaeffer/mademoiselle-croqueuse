@@ -1275,7 +1275,7 @@ function playBounceSound() {
 }
 
 // ========== SOUNDTRACK SYSTEM ==========
-const SOUNDTRACK_NAMES = ['Arcade Remix', 'Pac Electro'];
+const SOUNDTRACK_NAMES = ['Arcade Remix', 'Pac Electro', 'Classic Arcade'];
 let currentSoundtrack = 0;
 
 const MusicEngine = (() => {
@@ -1440,22 +1440,6 @@ const MusicEngine = (() => {
     if (step >= 64) step = 0;
   }
 
-  function start() {
-    init();
-    if (playing) return;
-    playing = true;
-    step = 0;
-    if (actx.state === 'suspended') actx.resume();
-    stepInterval = setInterval(doStep, s16 * 1000);
-    doStep();
-  }
-
-  function stop() {
-    if (!playing) return;
-    playing = false;
-    clearInterval(stepInterval);
-  }
-
   // ========== SOUNDTRACK 2: Pac Electro (darker, heavier, more groove) ==========
   // Inspired by modern Pac-Man remixes - punchy, driving, C minor
   const mel2A = [523,0,622,0, 523,466,0,523, 622,0,698,0, 622,523,466,0];
@@ -1524,8 +1508,76 @@ const MusicEngine = (() => {
     if (step >= 64) step = 0;
   }
 
+  // ========== SOUNDTRACK 3: Classic Arcade (G major, 116 BPM, retro pure) ==========
+  // Inspired by the original Pac-Man arcade sound: bright, bouncy, joyful
+  // Square waves, simple arpeggios, 8-bit charm
+  const mel3A = [784,0,880,784, 659,0,587,0, 784,0,880,988, 784,0,659,0];
+  const mel3B = [587,659,784,0, 880,0,784,659, 587,0,494,0, 587,659,587,0];
+  const mel3C = [988,0,880,0, 784,880,988,0, 1175,0,988,0, 880,784,659,784];
+  const mel3D = [880,988,880,0, 784,0,659,0, 587,659,784,659, 587,0,494,587];
+  const mel3F = [370,0,392,370, 330,0,294,0, 330,0,370,0, 330,294,262,0];
+  const bass3A = [196,0,196,0, 196,0,196,196, 220,0,220,0, 196,0,196,0];
+  const bass3B = [175,0,175,0, 196,0,220,0, 247,0,220,0, 196,0,175,196];
+  const bass3F = [147,0,147,0, 147,0,147,147, 156,0,147,0, 131,0,147,0];
+  const arp3A = [392,494,587,784, 587,494,392,494, 440,587,659,784, 659,587,440,494];
+  const arp3F = [294,370,440,587, 440,370,294,370, 330,392,494,587, 494,392,330,370];
+
+  function doStep3() {
+    const BPM3=116, beat3=60/BPM3, s3=beat3/4;
+    const s = step % 16;
+    const phrase = Math.floor(step / 16) % 4;
+
+    // Classic arcade drums: lighter, bouncier
+    if (s % 4 === 0) {
+      const t=actx.currentTime; const o=actx.createOscillator(); o.type='triangle';
+      o.frequency.setValueAtTime(80,t); o.frequency.exponentialRampToValueAtTime(20,t+0.08);
+      const g=actx.createGain(); g.gain.setValueAtTime(0.35,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+0.1);
+      o.connect(g); g.connect(masterGain); o.start(t); o.stop(t+0.1);
+    }
+    // Soft hi-hat on 8th notes
+    if (s % 2 === 0) {
+      const t=actx.currentTime; const sz=actx.sampleRate*0.02;
+      const buf=actx.createBuffer(1,sz,actx.sampleRate);
+      const d=buf.getChannelData(0); for(let i=0;i<sz;i++) d[i]=Math.random()*2-1;
+      const src=actx.createBufferSource(); src.buffer=buf;
+      const hp=actx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=10000;
+      const g=actx.createGain(); g.gain.setValueAtTime(0.04,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+0.02);
+      src.connect(hp); hp.connect(g); g.connect(masterGain); src.start(t); src.stop(t+0.02);
+    }
+
+    // Melody (square wave, bright and bouncy)
+    const mSeq = frightMode ? mel3F :
+      phrase===0 ? mel3A : phrase===1 ? mel3B : phrase===2 ? mel3C : mel3D;
+    const mN = mSeq[s];
+    if (mN > 0) note(mN, 'square', 0.06, s3 * 1.5, 3500);
+
+    // Bass (triangle wave, warm and round)
+    const bSeq = frightMode ? bass3F : (phrase < 2 ? bass3A : bass3B);
+    const bN = bSeq[s];
+    if (bN > 0) note(bN, 'triangle', 0.14, s3 * 1.8, 800);
+
+    // Arpeggios (square wave, quiet, very retro)
+    const aSeq = frightMode ? arp3F : arp3A;
+    const aN = aSeq[s];
+    if (aN > 0) {
+      const t=actx.currentTime; const o=actx.createOscillator();
+      o.type='square'; o.frequency.value=aN;
+      const flt=actx.createBiquadFilter(); flt.type='lowpass'; flt.frequency.value=1500; flt.Q.value=0.5;
+      const g=actx.createGain(); g.gain.setValueAtTime(0.025,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+s3*0.6);
+      o.connect(flt); flt.connect(g); g.connect(masterGain); o.start(t); o.stop(t+s3*0.7);
+    }
+
+    step++;
+    if (step >= 64) step = 0;
+  }
+
   function getS16() {
-    return 60 / 130 / 4; // both soundtracks at 130 BPM
+    // Different BPM per soundtrack
+    const bpm = currentSoundtrack === 2 ? 116 : 130;
+    return 60 / bpm / 4;
   }
 
   function start() {
@@ -1537,9 +1589,12 @@ const MusicEngine = (() => {
     const s16 = getS16();
     stepInterval = setInterval(() => {
       if (currentSoundtrack === 0) doStep();
-      else doStep2();
+      else if (currentSoundtrack === 1) doStep2();
+      else doStep3();
     }, s16 * 1000);
-    if (currentSoundtrack === 0) doStep(); else doStep2();
+    if (currentSoundtrack === 0) doStep();
+    else if (currentSoundtrack === 1) doStep2();
+    else doStep3();
   }
 
   function stop() {
