@@ -593,14 +593,14 @@ function update(dt) {
     bonusItem.moveCounter = (bonusItem.moveCounter || 0) + 1;
     if (bonusItem.moveCounter >= 4) {
       bonusItem.moveCounter = 0;
-      bonusItem.prevX = bonusItem.x;
-      bonusItem.prevY = bonusItem.y;
-      bonusItem.lerpT = 0;
       // Go straight until blocked by a wall
       let bx = bonusItem.x + DX[bonusItem.dir];
       let by = bonusItem.y + DY[bonusItem.dir];
       if (canMove(bx, by)) {
-        // Continue straight
+        // Continue straight - set prev to current before moving
+        bonusItem.prevX = bonusItem.x;
+        bonusItem.prevY = bonusItem.y;
+        bonusItem.lerpT = 0;
         bonusItem.x = wrapX(bx); bonusItem.y = by;
         if (Math.abs(bonusItem.x - bonusItem.prevX) > 2) bonusItem.prevX = bonusItem.x;
       } else {
@@ -621,9 +621,13 @@ function update(dt) {
         bx = bonusItem.x + DX[bonusItem.dir];
         by = bonusItem.y + DY[bonusItem.dir];
         if (canMove(bx, by)) {
+          bonusItem.prevX = bonusItem.x;
+          bonusItem.prevY = bonusItem.y;
+          bonusItem.lerpT = 0;
           bonusItem.x = wrapX(bx); bonusItem.y = by;
           if (Math.abs(bonusItem.x - bonusItem.prevX) > 2) bonusItem.prevX = bonusItem.x;
         }
+        // If can't move in new direction either, stay put (lerpT stays at 1)
       }
     } else {
       bonusItem.lerpT = Math.min(1, (bonusItem.lerpT || 0) + 0.25);
@@ -984,7 +988,7 @@ function draw() {
         ctx.fill();
       } else if (t === 3) {
         // Power pellet - blinking like original
-        if (Math.floor(animFrame / 8) % 2 === 0) {
+        if (Math.floor(animFrame / 2) % 2 === 0) {
           ctx.fillStyle = mc.pelletColor;
           ctx.beginPath();
           ctx.arc(c * TILE + TILE / 2, r * TILE + TILE / 2, 5.4, 0, Math.PI * 2);
