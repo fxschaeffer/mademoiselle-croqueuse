@@ -572,6 +572,7 @@ function startGame() {
   playStartJingle(() => {
     setMessage('');
     gameState = 'playing';
+    startSiren();
   });
 }
 
@@ -594,9 +595,11 @@ function nextLevel() {
   gameState = 'jingle';
   updateHUD();
   setMessage('NIVEAU ' + level);
+  stopSiren();
   playStartJingle(() => {
     setMessage('');
     gameState = 'playing';
+    startSiren();
   });
 }
 
@@ -790,6 +793,7 @@ function update(dt) {
     frightTimer = frightDuration;
     ghostsEatenThisFright = 0;
     MusicEngine.setFright(true);
+    stopSiren();
     ghosts.forEach(g => {
       if (!g.inHouse) {
         g.mode = 'frightened';
@@ -882,6 +886,7 @@ function update(dt) {
     if (frightTimer <= 0) {
       frightTimer = 0;
       MusicEngine.setFright(false);
+      startSiren();
       ghosts.forEach(g => { if (g.mode === 'frightened') g.mode = 'chase'; });
     }
   }
@@ -963,6 +968,7 @@ function update(dt) {
         score += ghostPoints;
         ghostsEatenThisFright++;
         scorePopups.push({ x: g.x, y: g.y, text: ghostPoints.toString(), timer: 1500 });
+        if (!musicMuted) playEatGhostSound();
         g.mode = 'eaten'; // Eyes return to ghost house
       } else {
         lives--;
@@ -971,6 +977,7 @@ function update(dt) {
           gameState = 'dying';
           deathTimer = 0;
           MusicEngine.stop();
+          stopSiren();
           playDeathSound();
           setTimeout(() => {
             gameState = 'gameover';
@@ -981,11 +988,13 @@ function update(dt) {
           gameState = 'dying';
           deathTimer = 0;
           MusicEngine.stop();
+          stopSiren();
           playDeathSound();
           setTimeout(() => {
             resetAfterDeath();
             gameState = 'playing';
             MusicEngine.start();
+            startSiren();
           }, 2000);
         }
       }
@@ -1453,6 +1462,70 @@ function playWakaSound() {
   } catch(e) {}
 }
 
+// Ghost siren (ambient wooOOOooo)
+let sirenCtx, sirenOsc, sirenGain, sirenActive = false;
+function startSiren() {
+  if (sirenActive || musicMuted) return;
+  try {
+    if (!sirenCtx) sirenCtx = new (window.AudioContext || window.webkitAudioContext)();
+    sirenOsc = sirenCtx.createOscillator();
+    sirenGain = sirenCtx.createGain();
+    sirenOsc.type = 'sine';
+    sirenOsc.frequency.setValueAtTime(200, sirenCtx.currentTime);
+    // Create wobble: oscillate between 200-400Hz over 0.5s, repeating
+    const now = sirenCtx.currentTime;
+    for (let i = 0; i < 600; i++) {
+      const t = now + i * 0.5;
+      sirenOsc.frequency.linearRampToValueAtTime(i % 2 === 0 ? 400 : 200, t + 0.5);
+    }
+    sirenGain.gain.setValueAtTime(0.03, sirenCtx.currentTime);
+    sirenOsc.connect(sirenGain);
+    sirenGain.connect(sirenCtx.destination);
+    sirenOsc.start();
+    sirenActive = true;
+  } catch(e) {}
+}
+function stopSiren() {
+  if (!sirenActive) return;
+  try {
+    sirenOsc.stop();
+    sirenActive = false;
+  } catch(e) { sirenActive = false; }
+}
+
+// Sound when eating a ghost
+let eatGhostCtx;
+function playEatGhostSound() {
+  try {
+    if (!eatGhostCtx) eatGhostCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = eatGhostCtx.currentTime;
+    // Ascending sweep
+    const osc1 = eatGhostCtx.createOscillator();
+    const gain1 = eatGhostCtx.createGain();
+    osc1.type = 'square';
+    osc1.frequency.setValueAtTime(200, now);
+    osc1.frequency.exponentialRampToValueAtTime(1200, now + 0.25);
+    gain1.gain.setValueAtTime(0.08, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    osc1.connect(gain1);
+    gain1.connect(eatGhostCtx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.3);
+    // Second harmonic
+    const osc2 = eatGhostCtx.createOscillator();
+    const gain2 = eatGhostCtx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(400, now);
+    osc2.frequency.exponentialRampToValueAtTime(1600, now + 0.2);
+    gain2.gain.setValueAtTime(0.04, now);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    osc2.connect(gain2);
+    gain2.connect(eatGhostCtx.destination);
+    osc2.start(now);
+    osc2.stop(now + 0.25);
+  } catch(e) {}
+}
+
 // Level start jingle
 function playStartJingle(callback) {
   try {
@@ -1883,6 +1956,7 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') {
     musicMuted = !musicMuted;
     MusicEngine.setVolume(musicMuted ? 0 : 0.35);
+    if (musicMuted) stopSiren(); else if (gameState === 'playing' && frightTimer <= 0) startSiren();
     return;
   }
   if (e.code === 'KeyT') {
@@ -2195,7 +2269,7 @@ if (sessionStorage.getItem('croqueuse_auth') === 'ok') {
 
 lockInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
-    if (lockInput.value === 'AvA') {
+    if (lockInput.value === 'ava') {
       sessionStorage.setItem('croqueuse_auth', 'ok');
       lockScreen.classList.add('hidden');
       gameContent.style.display = 'flex';
