@@ -315,6 +315,8 @@ const MAZES = [
 let map, score, lives, level, gameState, dotCount, totalDots;
 let player, ghosts, frightTimer, frightDuration;
 let bonusItem, bonusTimer, bonusActive;
+let ghostsEatenThisFright = 0;
+let scorePopups = []; // {x, y, text, timer}
 let animFrame = 0;
 let lastTime = 0;
 let moveTimer = 0;
@@ -558,6 +560,7 @@ function update(dt) {
     score += 50;
     dotCount--;
     frightTimer = frightDuration;
+    ghostsEatenThisFright = 0;
     MusicEngine.setFright(true);
     ghosts.forEach(g => {
       if (!g.inHouse) {
@@ -589,40 +592,48 @@ function update(dt) {
       bonusItem.prevX = bonusItem.x;
       bonusItem.prevY = bonusItem.y;
       bonusItem.lerpT = 0;
-      // Try current direction
+      // Go straight until blocked by a wall
       let bx = bonusItem.x + DX[bonusItem.dir];
       let by = bonusItem.y + DY[bonusItem.dir];
-      // At intersection or wall: pick random new direction
-      const possibleDirs = [];
-      for (let d = 0; d < 4; d++) {
-        const tx = bonusItem.x + DX[d];
-        const ty = bonusItem.y + DY[d];
-        if (canMove(tx, ty) && d !== (bonusItem.dir + 2) % 4) possibleDirs.push(d);
-      }
-      if (!canMove(bx, by) || (possibleDirs.length > 1 && Math.random() < 0.4)) {
-        // Bounce / change direction
-        if (possibleDirs.length > 0) {
-          bonusItem.dir = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
-        } else {
-          bonusItem.dir = (bonusItem.dir + 2) % 4; // reverse
-        }
-        bx = bonusItem.x + DX[bonusItem.dir];
-        by = bonusItem.y + DY[bonusItem.dir];
-        if (!canMove(bx, by)) { bx = bonusItem.x; by = bonusItem.y; }
-        else { playBounceSound(); }
-      }
       if (canMove(bx, by)) {
+        // Continue straight
         bonusItem.x = wrapX(bx); bonusItem.y = by;
         if (Math.abs(bonusItem.x - bonusItem.prevX) > 2) bonusItem.prevX = bonusItem.x;
+      } else {
+        // Hit a wall - bounce! Pick new direction (not same, not reverse unless dead end)
+        playBounceSound();
+        const possibleDirs = [];
+        for (let d = 0; d < 4; d++) {
+          const tx = bonusItem.x + DX[d];
+          const ty = bonusItem.y + DY[d];
+          if (canMove(tx, ty) && d !== bonusItem.dir && d !== (bonusItem.dir + 2) % 4) possibleDirs.push(d);
+        }
+        if (possibleDirs.length === 0) {
+          // Dead end: reverse
+          const rev = (bonusItem.dir + 2) % 4;
+          possibleDirs.push(rev);
+        }
+        bonusItem.dir = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
+        bx = bonusItem.x + DX[bonusItem.dir];
+        by = bonusItem.y + DY[bonusItem.dir];
+        if (canMove(bx, by)) {
+          bonusItem.x = wrapX(bx); bonusItem.y = by;
+          if (Math.abs(bonusItem.x - bonusItem.prevX) > 2) bonusItem.prevX = bonusItem.x;
+        }
       }
     } else {
       bonusItem.lerpT = Math.min(1, (bonusItem.lerpT || 0) + 0.25);
     }
     if (player.x === bonusItem.x && player.y === bonusItem.y) {
       score += bonusItem.points;
+      scorePopups.push({ x: bonusItem.x, y: bonusItem.y, text: bonusItem.points.toString(), timer: 1500 });
       bonusActive = false;
     }
   }
+
+  // Score popups timer
+  scorePopups.forEach(p => p.timer -= speed);
+  scorePopups = scorePopups.filter(p => p.timer > 0);
 
   // Fright timer
   if (frightTimer > 0) {
@@ -691,7 +702,10 @@ function update(dt) {
     if (g.inHouse) return;
     if (checkCollision(g) || checkSwap(g, ghostPrevPos[i])) {
       if (g.mode === 'frightened') {
-        score += 200;
+        const ghostPoints = 200 * Math.pow(2, ghostsEatenThisFright);
+        score += ghostPoints;
+        ghostsEatenThisFright++;
+        scorePopups.push({ x: g.x, y: g.y, text: ghostPoints.toString(), timer: 1500 });
         g.x = 14; g.y = 14;
         g.prevX = 14; g.prevY = 14; g.lerpT = 1;
         g.inHouse = true;
@@ -993,6 +1007,25 @@ function draw() {
   }
 
   ghosts.forEach((g, i) => { if (!g.inHouse) drawGhost(g, i); });
+
+  // Draw score popups
+  scorePopups.forEach(p => {
+    const px = p.x * TILE + TILE / 2;
+    const py = p.y * TILE + TILE / 2;
+    const alpha = Math.min(1, p.timer / 300);
+    const rise = (1500 - p.timer) / 1500 * 12;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeText(p.text, px, py - rise);
+    ctx.fillText(p.text, px, py - rise);
+    ctx.restore();
+  });
 }
 
 function drawStartScreen() {
@@ -1065,21 +1098,22 @@ function drawStartScreen() {
 }
 
 // ========== HOUSE MUSIC ENGINE ==========
-// Bounce sound for moving bonus
+// Subtle bounce sound for moving bonus
+let bounceCtx;
 function playBounceSound() {
   try {
-    const ac = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ac.createOscillator();
-    const gain = ac.createGain();
+    if (!bounceCtx) bounceCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = bounceCtx.createOscillator();
+    const gain = bounceCtx.createGain();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(800, ac.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(400, ac.currentTime + 0.08);
-    gain.gain.setValueAtTime(0.08, ac.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.1);
+    osc.frequency.setValueAtTime(600, bounceCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(300, bounceCtx.currentTime + 0.06);
+    gain.gain.setValueAtTime(0.03, bounceCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, bounceCtx.currentTime + 0.07);
     osc.connect(gain);
-    gain.connect(ac.destination);
+    gain.connect(bounceCtx.destination);
     osc.start();
-    osc.stop(ac.currentTime + 0.1);
+    osc.stop(bounceCtx.currentTime + 0.07);
   } catch(e) {}
 }
 
