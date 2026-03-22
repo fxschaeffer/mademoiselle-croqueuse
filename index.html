@@ -6,6 +6,7 @@
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
 <title>Mademoiselle Croqueuse - Arcade</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
 firebase.initializeApp({
@@ -18,6 +19,36 @@ firebase.initializeApp({
   appId: "1:1014156721559:web:4de88fd80a86a29a0318d2"
 });
 const db = firebase.database();
+const auth = firebase.auth();
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+let googleUser = null;
+auth.onAuthStateChanged(user => {
+  googleUser = user;
+  updateGoogleButton();
+  loadLeaderboard();
+});
+function updateGoogleButton() {
+  const btn = document.getElementById('googleBtn');
+  if (!btn) return;
+  if (googleUser) {
+    btn.innerHTML = `<img src="${googleUser.photoURL || ''}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:6px">${googleUser.displayName || 'Connecte'} ✓`;
+    btn.style.background = '#1a3a1a';
+    btn.style.borderColor = '#0f0';
+    btn.style.color = '#0f0';
+  } else {
+    btn.innerHTML = '🔗 Connexion Google';
+    btn.style.background = '#1a1a2e';
+    btn.style.borderColor = '#0ff';
+    btn.style.color = '#0ff';
+  }
+}
+function googleSignIn() {
+  if (googleUser) {
+    auth.signOut();
+  } else {
+    auth.signInWithPopup(googleProvider).catch(e => console.warn('Google sign-in error:', e));
+  }
+}
 </script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -162,24 +193,42 @@ const db = firebase.database();
   #leaderboard {
     margin-top: 15px;
     text-align: center;
+    display: flex;
+    gap: 30px;
+    justify-content: center;
+    flex-wrap: wrap;
   }
-  #leaderboard h3 {
+  .lb-section h3 {
     color: #0ff;
-    font-size: 16px;
+    font-size: 14px;
     text-shadow: 0 0 8px #0ff;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
-  #leaderboard table {
+  .lb-section table {
     margin: 0 auto;
     border-collapse: collapse;
-    font-size: 13px;
+    font-size: 12px;
   }
-  #leaderboard td {
-    padding: 2px 12px;
+  .lb-section td {
+    padding: 2px 8px;
     color: #0ff;
   }
-  #leaderboard td:first-child { color: #ffd700; }
-  #leaderboard td:last-child { color: #ffd700; }
+  .lb-section td:first-child { color: #ffd700; }
+  .lb-section td:last-child { color: #ffd700; }
+  .lb-section .verified { color: #0f0; font-size: 10px; }
+  .lb-section .photo { width: 16px; height: 16px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+  #googleBtn {
+    background: #1a1a2e;
+    border: 1px solid #0ff;
+    color: #0ff;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  #googleBtn:hover { background: #2a2a4e; }
 </style>
 </head>
 <body>
@@ -200,7 +249,11 @@ const db = firebase.database();
 <canvas id="game" width="672" height="744"></canvas>
 <div id="bonusBar" style="width:672px;padding:4px 0;font-size:18px;min-height:28px;text-align:left"></div>
 <div id="message" id="msg"></div>
-<div id="leaderboard"><h3>🏆 TOP 10</h3><div id="leaderboardTable"></div></div>
+<div id="leaderboard">
+  <div class="lb-section"><h3>🏆 Classement Officiel</h3><div id="lbOfficial">Pas encore de scores</div></div>
+  <div class="lb-section"><h3>🎮 Classement Arcade</h3><div id="lbArcade">Pas encore de scores</div></div>
+</div>
+<button id="googleBtn" onclick="googleSignIn()">🔗 Connexion Google</button>
 <div id="controls">Fleches / ZQSD / Manette pour bouger &bull; ESPACE pour commencer &bull; R pour recommencer &bull; P pour pause &bull; M pour mute &bull; T pour la musique</div>
 
 <div id="initialsOverlay">
@@ -905,7 +958,7 @@ function update(dt) {
           setTimeout(() => {
             gameState = 'gameover';
             setMessage('GAME OVER ! Appuyez sur R pour recommencer');
-            showInitialsPrompt(score);
+            saveScore(score);
           }, 2000);
         } else {
           gameState = 'dying';
@@ -1930,22 +1983,53 @@ requestAnimationFrame((time) => {
 
 // ========== LEADERBOARD (Firebase) ==========
 function loadLeaderboard() {
-  db.ref('highscores').orderByChild('score').limitToLast(10).on('value', (snap) => {
+  // Official (Google)
+  db.ref('scores_official').orderByChild('score').limitToLast(10).on('value', (snap) => {
     const entries = [];
     snap.forEach(child => { entries.push(child.val()); });
     entries.sort((a, b) => b.score - a.score);
-    const table = document.getElementById('leaderboardTable');
-    if (entries.length === 0) {
-      table.innerHTML = '<p style="color:#666;font-size:12px">Pas encore de scores</p>';
-      return;
-    }
+    const el = document.getElementById('lbOfficial');
+    if (!el) return;
+    if (entries.length === 0) { el.innerHTML = '<p style="color:#666;font-size:11px">Connecte-toi avec Google pour entrer au classement</p>'; return; }
+    let html = '<table>';
+    entries.forEach((e, i) => {
+      const photo = e.photo ? `<img class="photo" src="${e.photo}">` : '';
+      html += `<tr><td>${i + 1}.</td><td>${photo}${e.name} <span class="verified">✓</span></td><td>${e.score}</td></tr>`;
+    });
+    html += '</table>';
+    el.innerHTML = html;
+  });
+  // Arcade (initials)
+  db.ref('scores_arcade').orderByChild('score').limitToLast(10).on('value', (snap) => {
+    const entries = [];
+    snap.forEach(child => { entries.push(child.val()); });
+    entries.sort((a, b) => b.score - a.score);
+    const el = document.getElementById('lbArcade');
+    if (!el) return;
+    if (entries.length === 0) { el.innerHTML = '<p style="color:#666;font-size:11px">Pas encore de scores</p>'; return; }
     let html = '<table>';
     entries.forEach((e, i) => {
       html += `<tr><td>${i + 1}.</td><td>${e.name}</td><td>${e.score}</td></tr>`;
     });
     html += '</table>';
-    table.innerHTML = html;
+    el.innerHTML = html;
   });
+}
+
+function saveScore(finalScore) {
+  // Save to Google official if signed in
+  if (googleUser) {
+    db.ref('scores_official').push({
+      name: googleUser.displayName || 'Joueur',
+      photo: googleUser.photoURL || '',
+      uid: googleUser.uid,
+      score: finalScore,
+      date: Date.now(),
+      level: level
+    });
+  }
+  // Always show initials prompt for arcade board
+  showInitialsPrompt(finalScore);
 }
 
 function showInitialsPrompt(finalScore) {
@@ -1959,8 +2043,7 @@ function showInitialsPrompt(finalScore) {
   function submit() {
     const name = input.value.toUpperCase().replace(/[^A-Z]/g, '').substring(0, 3);
     if (name.length < 1) return;
-    // Save to Firebase
-    db.ref('highscores').push({
+    db.ref('scores_arcade').push({
       name: name || 'AAA',
       score: finalScore,
       date: Date.now(),
