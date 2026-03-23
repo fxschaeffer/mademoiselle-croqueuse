@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Preview Labyrinthe Genere</title>
+<style>
+body { background: #0a0a1a; color: #fff; font-family: 'Courier New', monospace; text-align: center; padding: 20px; }
+h1 { color: #ff69b4; text-shadow: 0 0 10px #ff69b4; }
+.controls { margin: 15px 0; }
+.btn { background: #1a1a2e; border: 2px solid #0ff; color: #0ff; padding: 10px 20px;
+  border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 14px; margin: 5px; }
+.btn:hover { background: #0ff2; }
+.btn.gen { border-color: #0f0; color: #0f0; font-size: 16px; padding: 12px 30px; }
+canvas { border: 3px solid #ff69b4; border-radius: 8px; display: block; margin: 15px auto; }
+.stats { color: #888; font-size: 13px; margin: 10px 0; }
+.color-select { background: #111; border: 1px solid #333; color: #0ff; padding: 6px 12px;
+  border-radius: 4px; font-family: inherit; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>Preview Labyrinthe Genere</h1>
+<p style="color:#888">Algorithme Shaun LeBron - Format natif 28x36</p>
+
+<div class="controls">
+  <button class="btn gen" onclick="generateAndDraw()">🔄 Generer un nouveau labyrinthe</button>
+  <br><br>
+  <label style="color:#ccc">Couleur : </label>
+  <select id="colorSelect" class="color-select" onchange="redraw()">
+    <option value="0">Rose</option>
+    <option value="1">Cyan</option>
+    <option value="2">Orange</option>
+    <option value="3">Vert</option>
+    <option value="4">Violet</option>
+  </select>
+</div>
+
+<canvas id="mazeCanvas" width="560" height="720"></canvas>
+<div class="stats" id="stats"></div>
+
+<script src="mazegen.js"></script>
+<script>
+const TILE_SIZE = 20;
+const COLORS = [
+  { wallFill: '#5e1a3a', wallStroke: '#ff44aa', dotColor: '#ffaacc' },
+  { wallFill: '#1a4a5e', wallStroke: '#44ddff', dotColor: '#aaeeff' },
+  { wallFill: '#5e3a1a', wallStroke: '#ff8844', dotColor: '#ffcc88' },
+  { wallFill: '#1a5e2a', wallStroke: '#44ff66', dotColor: '#aaffbb' },
+  { wallFill: '#3a1a5e', wallStroke: '#aa44ff', dotColor: '#ccaaff' },
+];
+
+let currentTiles = null;
+let currentGrid36 = null;
+
+function parseTilesToGrid36(tileStr) {
+  // Parse the raw tile string into a 28x36 grid
+  var W = 28;
+  var H = 36;
+  var grid = [];
+  for (var r = 0; r < H; r++) {
+    var row = [];
+    for (var c = 0; c < W; c++) {
+      var ch = tileStr[r * W + c] || '_';
+      switch (ch) {
+        case '.': row.push(2); break;  // dot
+        case 'o': row.push(3); break;  // power pellet
+        case '|': row.push(1); break;  // wall
+        case '-': row.push(5); break;  // ghost door
+        case ' ': row.push(0); break;  // path (no dot)
+        case '_': row.push(1); break;  // blank = wall (outside border)
+        default:  row.push(1); break;
+      }
+    }
+    grid.push(row);
+  }
+
+  // Fix ghost house interior
+  var doorRow = -1, doorColLeft = -1, doorColRight = -1;
+  for (var r = 8; r < 25; r++) {
+    for (var c = 0; c < 28; c++) {
+      if (grid[r][c] === 5) {
+        doorRow = r;
+        if (doorColLeft < 0) doorColLeft = c;
+        doorColRight = c;
+      }
+    }
+    if (doorRow >= 0) break;
+  }
+
+  if (doorRow >= 0) {
+    var ghTop = doorRow + 1;
+    var ghBot = doorRow + 3;
+    var ghLeft = doorColLeft - 2;
+    var ghRight = doorColRight + 2;
+    for (var r = ghTop; r <= ghBot && r < H; r++) {
+      for (var c = ghLeft; c <= ghRight && c < W; c++) {
+        if (c >= 0) grid[r][c] = 4;
+      }
+    }
+  }
+
+  return { grid: grid, doorRow: doorRow };
+}
+
+function generateAndDraw() {
+  currentTiles = MazeGen.generateRaw();
+  if (!currentTiles) {
+    document.getElementById('stats').textContent = 'Erreur de generation, reessayez...';
+    return;
+  }
+  redraw();
+}
+
+function redraw() {
+  if (!currentTiles) return;
+
+  var parsed = parseTilesToGrid36(currentTiles);
+  currentGrid36 = parsed.grid;
+  var doorRow = parsed.doorRow;
+
+  var W = 28;
+  var H = 36;
+  var T = TILE_SIZE;
+  var canvas = document.getElementById('mazeCanvas');
+  canvas.width = W * T;
+  canvas.height = H * T;
+  var ctx = canvas.getContext('2d');
+
+  var colorIdx = parseInt(document.getElementById('colorSelect').value) || 0;
+  var colors = COLORS[colorIdx];
+
+  // Clear
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Count stats
+  var dots = 0, pellets = 0, walls = 0, paths = 0;
+
+  // Draw tiles
+  for (var r = 0; r < H; r++) {
+    for (var c = 0; c < W; c++) {
+      var tile = currentGrid36[r][c];
+      var x = c * T;
+      var y = r * T;
+
+      if (tile === 1) {
+        // Wall
+        walls++;
+        ctx.fillStyle = colors.wallFill;
+        ctx.fillRect(x, y, T, T);
+
+        // Draw contour on edges adjacent to paths
+        ctx.strokeStyle = colors.wallStroke;
+        ctx.lineWidth = 1.5;
+        var isPath = function(rr, cc) {
+          if (rr < 0 || rr >= H || cc < 0 || cc >= W) return false;
+          var t = currentGrid36[rr][cc];
+          return t !== 1;
+        };
+        if (isPath(r-1, c)) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+T, y); ctx.stroke(); }
+        if (isPath(r+1, c)) { ctx.beginPath(); ctx.moveTo(x, y+T); ctx.lineTo(x+T, y+T); ctx.stroke(); }
+        if (isPath(r, c-1)) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y+T); ctx.stroke(); }
+        if (isPath(r, c+1)) { ctx.beginPath(); ctx.moveTo(x+T, y); ctx.lineTo(x+T, y+T); ctx.stroke(); }
+      } else if (tile === 2) {
+        // Dot
+        dots++;
+        paths++;
+        ctx.fillStyle = colors.dotColor;
+        ctx.beginPath();
+        ctx.arc(x + T/2, y + T/2, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (tile === 3) {
+        // Power pellet
+        pellets++;
+        paths++;
+        ctx.fillStyle = colors.dotColor;
+        ctx.beginPath();
+        ctx.arc(x + T/2, y + T/2, 6, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (tile === 5) {
+        // Ghost door
+        paths++;
+        ctx.fillStyle = '#ffaacc';
+        ctx.fillRect(x, y + T/2 - 2, T, 4);
+      } else if (tile === 4) {
+        // Ghost house interior
+        paths++;
+        ctx.fillStyle = '#111';
+        ctx.fillRect(x, y, T, T);
+      } else {
+        // Path (no dot)
+        paths++;
+      }
+    }
+  }
+
+  // Stats
+  var total = W * H;
+  var wallPct = Math.round(walls / total * 100);
+  var pathPct = Math.round(paths / total * 100);
+  document.getElementById('stats').innerHTML =
+    'Taille: 28x36 | Dots: <span style="color:#0f0">' + dots + '</span> | ' +
+    'Power: <span style="color:#ff0">' + pellets + '</span> | ' +
+    'Murs: ' + walls + ' (' + wallPct + '%) | ' +
+    'Chemins: ' + paths + ' (' + pathPct + '%) | ' +
+    'Ghost door: row ' + doorRow;
+}
+
+// Generate on load
+generateAndDraw();
+</script>
+</body>
+</html>
