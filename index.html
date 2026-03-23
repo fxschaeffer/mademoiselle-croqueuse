@@ -576,6 +576,7 @@ function getMazeData() {
 }
 
 function getMazeColors() {
+  if (testMazeColors) return testMazeColors;
   const id = getMazeIndex();
   if (id < MAZE_COLORS.length) {
     return MAZE_COLORS[id]; // hardcoded colors
@@ -592,8 +593,24 @@ function isTunnelRow(y) {
   return map[y] && map[y][0] === 0;
 }
 
+// Test mode: load maze from sessionStorage if ?test=1 in URL
+let testMazeData = null;
+let testMazeColors = null;
+if (new URLSearchParams(window.location.search).get('test') === '1') {
+  try {
+    const td = JSON.parse(sessionStorage.getItem('testMaze'));
+    if (td && td.grid) {
+      testMazeData = td.grid;
+      const ci = td.colorIndex !== undefined ? td.colorIndex : 0;
+      testMazeColors = ALL_COLORS[ci] || ALL_COLORS[0];
+      // Show test mode indicator
+      document.title = '🧪 TEST - Mademoiselle Croqueuse';
+    }
+  } catch(e) {}
+}
+
 function resetMap() {
-  map = getMazeData().map(row => [...row]);
+  map = (testMazeData || getMazeData()).map(row => [...row]);
   dotCount = 0;
   totalDots = 0;
   for (let r = 0; r < ROWS; r++)
@@ -1507,6 +1524,15 @@ function drawStartScreen() {
   ctx.fillStyle = '#ffd700';
   ctx.font = 'bold 36px Courier New';
   ctx.fillText('CROQUEUSE', canvas.width / 2, 245);
+
+  // Test mode banner
+  if (testMazeData) {
+    ctx.fillStyle = 'rgba(255,200,0,0.9)';
+    ctx.fillRect(0, 150, canvas.width, 28);
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 16px Courier New';
+    ctx.fillText('🧪 MODE TEST - Labyrinthe en preview', canvas.width / 2, 168);
+  }
 
   // Character preview
   const cx = canvas.width / 2;
@@ -2503,7 +2529,7 @@ const lockMsg = document.getElementById('lockMsg');
 const lockScreen = document.getElementById('lockScreen');
 const gameContent = document.getElementById('gameContent');
 
-if (sessionStorage.getItem('croqueuse_auth') === 'ok') {
+if (sessionStorage.getItem('croqueuse_auth') === 'ok' || testMazeData) {
   lockScreen.classList.add('hidden');
   gameContent.style.display = 'flex';
 }

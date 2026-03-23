@@ -151,9 +151,14 @@ h2 { color: #0ff; font-size: 16px; margin: 15px 0 10px; }
             </select>
           </div>
           <div id="genStats" style="color:#888;font-size:12px;margin-bottom:15px"></div>
-          <button class="save-btn" onclick="saveGeneratedMaze()" style="font-size:13px;padding:8px 16px">
-            ✓ Ajouter ce labyrinthe
-          </button>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn" onclick="testGeneratedMaze()" style="font-size:13px;padding:8px 16px;border-color:#ffd700;color:#ffd700">
+              🎮 Tester ce labyrinthe
+            </button>
+            <button class="save-btn" onclick="saveGeneratedMaze()" style="font-size:13px;padding:8px 16px">
+              ✓ Ajouter (archive)
+            </button>
+          </div>
           <div id="genSaveStatus" class="status" style="margin-top:8px"></div>
         </div>
       </div>
@@ -636,6 +641,25 @@ function drawMazePreview(ctx, grid, colors, w, h) {
   }
 }
 
+function testGeneratedMaze() {
+  if (!lastGeneratedMaze) return;
+  var colorIdx = parseInt(document.getElementById('genColor').value) || 0;
+
+  // Store the test maze in sessionStorage so the game can load it
+  var testData = {
+    grid: lastGeneratedMaze.grid,
+    spawnRow: lastGeneratedMaze.spawnRow,
+    spawnCol: lastGeneratedMaze.spawnCol,
+    doorRow: lastGeneratedMaze.doorRow,
+    doorCol: lastGeneratedMaze.doorCol,
+    colorIndex: colorIdx
+  };
+  sessionStorage.setItem('testMaze', JSON.stringify(testData));
+
+  // Open game in new tab with test parameter
+  window.open('index.html?test=1', '_blank');
+}
+
 function saveGeneratedMaze() {
   if (!lastGeneratedMaze) return;
 
@@ -666,7 +690,7 @@ function saveGeneratedMaze() {
     config.mazes.push({
       id: newId,
       name: name,
-      active: true,
+      active: false,
       order: maxOrder + 1,
       custom: true,
       colorIndex: colorIdx
