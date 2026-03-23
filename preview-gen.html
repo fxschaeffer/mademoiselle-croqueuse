@@ -135,32 +135,22 @@ function redraw() {
   // Count stats
   var dots = 0, pellets = 0, walls = 0, paths = 0;
 
-  // Draw tiles
+  // Helper: is this tile NOT a wall?
+  var isPath = function(rr, cc) {
+    if (rr < 0 || rr >= H || cc < 0 || cc >= W) return false;
+    return currentGrid36[rr][cc] !== 1;
+  };
+
+  // First pass: count stats and draw non-wall tiles
   for (var r = 0; r < H; r++) {
     for (var c = 0; c < W; c++) {
       var tile = currentGrid36[r][c];
+      if (tile === 1) { walls++; continue; }
+
       var x = c * T;
       var y = r * T;
 
-      if (tile === 1) {
-        // Wall
-        walls++;
-        ctx.fillStyle = colors.wallFill;
-        ctx.fillRect(x, y, T, T);
-
-        // Draw contour on edges adjacent to paths
-        ctx.strokeStyle = colors.wallStroke;
-        ctx.lineWidth = 1.5;
-        var isPath = function(rr, cc) {
-          if (rr < 0 || rr >= H || cc < 0 || cc >= W) return false;
-          var t = currentGrid36[rr][cc];
-          return t !== 1;
-        };
-        if (isPath(r-1, c)) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+T, y); ctx.stroke(); }
-        if (isPath(r+1, c)) { ctx.beginPath(); ctx.moveTo(x, y+T); ctx.lineTo(x+T, y+T); ctx.stroke(); }
-        if (isPath(r, c-1)) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y+T); ctx.stroke(); }
-        if (isPath(r, c+1)) { ctx.beginPath(); ctx.moveTo(x+T, y); ctx.lineTo(x+T, y+T); ctx.stroke(); }
-      } else if (tile === 2) {
+      if (tile === 2) {
         // Dot
         dots++;
         paths++;
@@ -191,6 +181,69 @@ function redraw() {
         paths++;
       }
     }
+  }
+
+  // Second pass: draw wall OUTLINES only (not filled blocks)
+  // This traces the border between wall tiles and non-wall tiles
+  // creating thin colored lines like the original Pac-Man
+  ctx.strokeStyle = colors.wallStroke;
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Draw horizontal edges
+  for (var r = 0; r <= H; r++) {
+    var drawing = false;
+    ctx.beginPath();
+    for (var c = 0; c < W; c++) {
+      var above = (r > 0) ? currentGrid36[r-1][c] : -1;
+      var below = (r < H) ? currentGrid36[r][c] : -1;
+      var aboveIsWall = (above === 1);
+      var belowIsWall = (below === 1);
+
+      if (aboveIsWall !== belowIsWall) {
+        // This is a border edge
+        if (!drawing) {
+          ctx.moveTo(c * T, r * T);
+          drawing = true;
+        }
+        ctx.lineTo((c + 1) * T, r * T);
+      } else {
+        if (drawing) {
+          ctx.stroke();
+          ctx.beginPath();
+          drawing = false;
+        }
+      }
+    }
+    if (drawing) ctx.stroke();
+  }
+
+  // Draw vertical edges
+  for (var c = 0; c <= W; c++) {
+    var drawing = false;
+    ctx.beginPath();
+    for (var r = 0; r < H; r++) {
+      var left = (c > 0) ? currentGrid36[r][c-1] : -1;
+      var right = (c < W) ? currentGrid36[r][c] : -1;
+      var leftIsWall = (left === 1);
+      var rightIsWall = (right === 1);
+
+      if (leftIsWall !== rightIsWall) {
+        if (!drawing) {
+          ctx.moveTo(c * T, r * T);
+          drawing = true;
+        }
+        ctx.lineTo(c * T, (r + 1) * T);
+      } else {
+        if (drawing) {
+          ctx.stroke();
+          ctx.beginPath();
+          drawing = false;
+        }
+      }
+    }
+    if (drawing) ctx.stroke();
   }
 
   // Stats
