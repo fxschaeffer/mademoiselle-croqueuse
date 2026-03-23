@@ -82,6 +82,10 @@ h2 { color: #0ff; font-size: 16px; margin: 15px 0 10px; }
   border-bottom: 1px solid #222; }
 .sfx-row:last-child { border-bottom: none; }
 .sfx-name { flex: 1; font-size: 12px; color: #ccc; }
+.gen-section { background: #111; border: 1px solid #0ff3; border-radius: 8px; padding: 20px; margin-top: 20px; }
+.gen-section h2 { color: #ffd700; font-size: 16px; margin-bottom: 10px; }
+.gen-input { background: #0a0a1a; border: 1px solid #333; color: #0ff; padding: 8px 12px;
+  font-family: inherit; font-size: 14px; border-radius: 4px; width: 180px; }
 </style>
 </head>
 <body>
@@ -109,6 +113,51 @@ h2 { color: #0ff; font-size: 16px; margin: 15px 0 10px; }
       Definissez l'ordre des labyrinthes et activez/archivez-les. Les joueurs ne verront que les labyrinthes actifs, dans l'ordre defini.
     </p>
     <div id="mazeList"></div>
+
+    <div class="gen-section">
+      <h2>🎲 Generateur de labyrinthes</h2>
+      <p style="color:#888;font-size:12px;margin-bottom:15px">
+        Generez de nouveaux labyrinthes proceduraux inspires de l'algorithme de Shaun LeBron.
+        Chaque clic produit un labyrinthe unique et valide.
+      </p>
+      <div style="display:flex;gap:15px;align-items:flex-start;flex-wrap:wrap">
+        <div>
+          <div style="margin-bottom:10px;display:flex;gap:10px;align-items:center">
+            <button class="btn" onclick="generateNewMaze()" id="genBtn" style="font-size:14px;padding:10px 20px">
+              🎲 Generer un labyrinthe
+            </button>
+            <button class="btn" onclick="generateNewMaze()" id="regenBtn" style="display:none">
+              🔄 Regenerer
+            </button>
+          </div>
+          <canvas id="genPreview" width="280" height="310" style="border:2px solid #333;border-radius:6px;background:#000;display:none"></canvas>
+        </div>
+        <div id="genInfo" style="display:none">
+          <div style="margin-bottom:10px">
+            <label style="color:#ccc;font-size:13px">Nom du labyrinthe :</label><br>
+            <input type="text" id="genName" placeholder="Ex: Bruxelles" class="gen-input">
+          </div>
+          <div style="margin-bottom:10px">
+            <label style="color:#ccc;font-size:13px">Couleur :</label><br>
+            <select id="genColor" class="audio-select" style="max-width:180px">
+              <option value="0">Rose</option>
+              <option value="1">Cyan</option>
+              <option value="2">Orange</option>
+              <option value="3">Vert</option>
+              <option value="4">Violet</option>
+              <option value="5">Rouge</option>
+              <option value="6">Bleu</option>
+              <option value="7">Or</option>
+            </select>
+          </div>
+          <div id="genStats" style="color:#888;font-size:12px;margin-bottom:15px"></div>
+          <button class="save-btn" onclick="saveGeneratedMaze()" style="font-size:13px;padding:8px 16px">
+            ✓ Ajouter ce labyrinthe
+          </button>
+          <div id="genSaveStatus" class="status" style="margin-top:8px"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- AUDIO TAB -->
@@ -169,6 +218,7 @@ h2 { color: #0ff; font-size: 16px; margin: 15px 0 10px; }
   </div>
 </div>
 
+<script src="mazegen.js"></script>
 <script>
 // Tab navigation
 function showTab(tab) {
@@ -358,19 +408,22 @@ function renderMazeList() {
   const sorted = [...config.mazes].sort((a, b) => a.order - b.order);
 
   list.innerHTML = sorted.map((m, idx) => {
-    const colors = MAZE_COLORS_ADMIN[m.id] || MAZE_COLORS_ADMIN[0];
+    const isCustom = m.custom || m.id >= 5;
+    const colorIdx = m.colorIndex !== undefined ? m.colorIndex : m.id;
+    const colors = (isCustom ? ALL_COLORS[colorIdx] : MAZE_COLORS_ADMIN[m.id]) || MAZE_COLORS_ADMIN[0];
+    const displayName = m.name || MAZE_NAMES[m.id] || ('Maze #' + m.id);
     return `
     <div class="maze-card ${m.active ? '' : 'archived'}" data-id="${m.id}">
       <div class="maze-preview">
         <canvas id="preview_${m.id}" width="140" height="155"></canvas>
       </div>
       <div class="maze-info">
-        <div class="name" style="color:${colors.stroke}">${m.name || MAZE_NAMES[m.id]}</div>
+        <div class="name" style="color:${colors.stroke}">${displayName}</div>
         <div class="details">
-          Labyrinthe #${m.id + 1} |
+          ${isCustom ? '🎲 Genere' : '📦 Original'} #${m.id + 1} |
           ${m.active ? '<span style="color:#0f0">Actif</span>' : '<span style="color:#f44">Archive</span>'}
         </div>
-        <div class="maze-names">Couleur: ${MAZE_NAMES[m.id]}</div>
+        <div class="maze-names">Couleur: ${colors.name || MAZE_NAMES[m.id] || 'Custom'}</div>
       </div>
       <div class="maze-controls">
         <label style="font-size:12px;color:#888">Ordre:
@@ -387,7 +440,24 @@ function renderMazeList() {
   }).join('');
 
   // Draw mini previews
-  sorted.forEach(m => drawMiniPreview(m.id));
+  sorted.forEach(m => {
+    if (m.custom || m.id >= 5) {
+      // Load custom maze from Firebase for preview
+      db.ref('custom_mazes/' + m.id).once('value', function(snap) {
+        var data = snap.val();
+        if (data && data.grid) {
+          var canvas = document.getElementById('preview_' + m.id);
+          if (canvas) {
+            var ctx = canvas.getContext('2d');
+            var colorIdx = m.colorIndex !== undefined ? m.colorIndex : 0;
+            drawMazePreview(ctx, data.grid, ALL_COLORS[colorIdx], 140, 155);
+          }
+        }
+      });
+    } else {
+      drawMiniPreview(m.id);
+    }
+  });
 }
 
 function drawMiniPreview(mazeId) {
@@ -439,6 +509,180 @@ function updateOrder(id, val) {
   if (maze) {
     maze.order = parseInt(val) || 1;
   }
+}
+
+// Extended color palette for generated mazes
+const ALL_COLORS = [
+  { fill: '#5e1a3a', stroke: '#ff44aa', dot: '#ffaacc', name: 'Rose' },
+  { fill: '#1a4a5e', stroke: '#44ddff', dot: '#aaeeff', name: 'Cyan' },
+  { fill: '#5e3a1a', stroke: '#ff8844', dot: '#ffcc88', name: 'Orange' },
+  { fill: '#1a5e2a', stroke: '#44ff66', dot: '#aaffbb', name: 'Vert' },
+  { fill: '#3a1a5e', stroke: '#aa44ff', dot: '#ccaaff', name: 'Violet' },
+  { fill: '#5e1a1a', stroke: '#ff4444', dot: '#ffaaaa', name: 'Rouge' },
+  { fill: '#1a1a5e', stroke: '#4466ff', dot: '#aabbff', name: 'Bleu' },
+  { fill: '#5e4a1a', stroke: '#ffcc00', dot: '#ffee88', name: 'Or' },
+];
+
+var lastGeneratedMaze = null;
+
+function generateNewMaze() {
+  document.getElementById('genBtn').textContent = '⏳ Generation...';
+  setTimeout(function() {
+    var result = MazeGen.generate();
+    if (!result) {
+      document.getElementById('genBtn').textContent = '❌ Echec - Reessayer';
+      return;
+    }
+    lastGeneratedMaze = result;
+
+    // Draw preview
+    var canvas = document.getElementById('genPreview');
+    canvas.style.display = 'block';
+    var ctx = canvas.getContext('2d');
+    var colorIdx = parseInt(document.getElementById('genColor').value) || 0;
+    drawMazePreview(ctx, result.grid, ALL_COLORS[colorIdx], 280, 310);
+
+    // Show stats
+    var counts = {0:0,1:0,2:0,3:0,4:0,5:0};
+    result.grid.forEach(function(r) { r.forEach(function(v) { counts[v]++; }); });
+    document.getElementById('genStats').innerHTML =
+      'Dots: <strong style="color:#ffd700">' + counts[2] + '</strong> | ' +
+      'Power: <strong style="color:#ffd700">' + counts[3] + '</strong> | ' +
+      'Ghost House: <strong style="color:#ffd700">' + counts[4] + '</strong> | ' +
+      'Murs: ' + counts[1];
+
+    // Show controls
+    document.getElementById('genInfo').style.display = 'block';
+    document.getElementById('regenBtn').style.display = 'inline-block';
+    document.getElementById('genBtn').textContent = '🎲 Generer un labyrinthe';
+    document.getElementById('genSaveStatus').textContent = '';
+
+    // Auto-generate name
+    var names = ['Bruxelles', 'Anvers', 'Gand', 'Bruges', 'Liege', 'Namur', 'Mons', 'Charleroi',
+                 'Louvain', 'Ostende', 'Malines', 'Tournai', 'Spa', 'Dinant', 'Waterloo', 'Arlon'];
+    var existingNames = config.mazes.map(function(m) { return m.name; });
+    var available = names.filter(function(n) { return existingNames.indexOf(n) < 0; });
+    if (available.length > 0) {
+      document.getElementById('genName').value = available[getRandomInt(0, available.length - 1)];
+    }
+  }, 50);
+}
+
+function getRandomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// Update preview when color changes
+document.addEventListener('DOMContentLoaded', function() {
+  var colorSel = document.getElementById('genColor');
+  if (colorSel) {
+    colorSel.addEventListener('change', function() {
+      if (lastGeneratedMaze) {
+        var canvas = document.getElementById('genPreview');
+        var ctx = canvas.getContext('2d');
+        var colorIdx = parseInt(colorSel.value) || 0;
+        drawMazePreview(ctx, lastGeneratedMaze.grid, ALL_COLORS[colorIdx], 280, 310);
+      }
+    });
+  }
+});
+
+function drawMazePreview(ctx, grid, colors, w, h) {
+  var tileW = w / 28;
+  var tileH = h / 31;
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, w, h);
+
+  for (var r = 0; r < 31; r++) {
+    for (var c = 0; c < 28; c++) {
+      var v = grid[r][c];
+      var x = c * tileW;
+      var y = r * tileH;
+
+      if (v === 1) {
+        // Wall
+        ctx.fillStyle = colors.fill;
+        ctx.fillRect(x, y, tileW + 0.5, tileH + 0.5);
+        // Draw edge lines on sides facing paths
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 0.5;
+        if (c > 0 && grid[r][c-1] !== 1) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + tileH); ctx.stroke(); }
+        if (c < 27 && grid[r][c+1] !== 1) { ctx.beginPath(); ctx.moveTo(x + tileW, y); ctx.lineTo(x + tileW, y + tileH); ctx.stroke(); }
+        if (r > 0 && grid[r-1][c] !== 1) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + tileW, y); ctx.stroke(); }
+        if (r < 30 && grid[r+1][c] !== 1) { ctx.beginPath(); ctx.moveTo(x, y + tileH); ctx.lineTo(x + tileW, y + tileH); ctx.stroke(); }
+      } else if (v === 2) {
+        // Dot
+        ctx.fillStyle = colors.dot;
+        ctx.beginPath();
+        ctx.arc(x + tileW/2, y + tileH/2, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (v === 3) {
+        // Power pellet
+        ctx.fillStyle = colors.dot;
+        ctx.beginPath();
+        ctx.arc(x + tileW/2, y + tileH/2, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (v === 5) {
+        // Ghost door
+        ctx.fillStyle = '#ffb8ff';
+        ctx.fillRect(x, y + tileH * 0.35, tileW + 0.5, tileH * 0.3);
+      } else if (v === 4) {
+        // Ghost house interior
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillRect(x, y, tileW + 0.5, tileH + 0.5);
+      }
+    }
+  }
+}
+
+function saveGeneratedMaze() {
+  if (!lastGeneratedMaze) return;
+
+  var name = document.getElementById('genName').value.trim() || 'Genere ' + Date.now();
+  var colorIdx = parseInt(document.getElementById('genColor').value) || 0;
+
+  // Find next available ID
+  var maxId = 4; // 0-4 are hardcoded
+  config.mazes.forEach(function(m) { if (m.id > maxId) maxId = m.id; });
+  var newId = maxId + 1;
+
+  // Find next order
+  var maxOrder = 0;
+  config.mazes.forEach(function(m) { if (m.order > maxOrder) maxOrder = m.order; });
+
+  // Save the maze grid to Firebase
+  var mazeData = {
+    grid: lastGeneratedMaze.grid,
+    spawnRow: lastGeneratedMaze.spawnRow,
+    spawnCol: lastGeneratedMaze.spawnCol,
+    doorRow: lastGeneratedMaze.doorRow,
+    doorCol: lastGeneratedMaze.doorCol,
+    colorIndex: colorIdx
+  };
+
+  db.ref('custom_mazes/' + newId).set(mazeData).then(function() {
+    // Add to config
+    config.mazes.push({
+      id: newId,
+      name: name,
+      active: true,
+      order: maxOrder + 1,
+      custom: true,
+      colorIndex: colorIdx
+    });
+
+    // Save config
+    db.ref('maze_config').set(config).then(function() {
+      document.getElementById('genSaveStatus').textContent = '✓ Labyrinthe "' + name + '" ajoute (#' + newId + ')';
+      document.getElementById('genSaveStatus').style.color = '#0f0';
+      renderMazeList();
+      lastGeneratedMaze = null;
+    });
+  }).catch(function(err) {
+    document.getElementById('genSaveStatus').textContent = 'Erreur: ' + err.message;
+    document.getElementById('genSaveStatus').style.color = '#f44';
+  });
 }
 
 function saveConfig() {

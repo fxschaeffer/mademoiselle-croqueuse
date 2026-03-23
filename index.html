@@ -496,6 +496,22 @@ const BONUS_FRUITS = [
 
 // Active maze config (loaded from Firebase, fallback to all mazes)
 let activeMazeOrder = [0, 1, 2, 3, 4]; // default: all 5 in order
+let activeMazeConfigs = {}; // stores config per maze id (for custom mazes)
+
+// Custom mazes loaded from Firebase (id >= 5)
+let customMazes = {};
+
+// Extended color palette for generated mazes
+const ALL_COLORS = [
+  { wallFill: '#5e1a3a', wallStroke: '#ff44aa', dotColor: '#ffaacc', pelletColor: '#ffaacc' },
+  { wallFill: '#1a4a5e', wallStroke: '#44ddff', dotColor: '#aaeeff', pelletColor: '#aaeeff' },
+  { wallFill: '#5e3a1a', wallStroke: '#ff8844', dotColor: '#ffcc88', pelletColor: '#ffcc88' },
+  { wallFill: '#1a5e2a', wallStroke: '#44ff66', dotColor: '#aaffbb', pelletColor: '#aaffbb' },
+  { wallFill: '#3a1a5e', wallStroke: '#aa44ff', dotColor: '#ccaaff', pelletColor: '#ccaaff' },
+  { wallFill: '#5e1a1a', wallStroke: '#ff4444', dotColor: '#ffaaaa', pelletColor: '#ffaaaa' },
+  { wallFill: '#1a1a5e', wallStroke: '#4466ff', dotColor: '#aabbff', pelletColor: '#aabbff' },
+  { wallFill: '#5e4a1a', wallStroke: '#ffcc00', dotColor: '#ffee88', pelletColor: '#ffee88' },
+];
 
 // Audio config from Firebase
 let audioConfig = {
@@ -512,6 +528,8 @@ db.ref('maze_config').on('value', (snap) => {
     const active = val.mazes.filter(m => m.active).sort((a, b) => a.order - b.order);
     if (active.length > 0) {
       activeMazeOrder = active.map(m => m.id);
+      // Store config for each maze
+      active.forEach(m => { activeMazeConfigs[m.id] = m; });
     }
   }
   if (val && val.audio) {
@@ -519,6 +537,18 @@ db.ref('maze_config').on('value', (snap) => {
     if (val.audio.context) audioConfig.context = { ...audioConfig.context, ...val.audio.context };
     if (val.audio.volumes) audioConfig.volumes = { ...audioConfig.volumes, ...val.audio.volumes };
     if (val.audio.sfx) audioConfig.sfx = { ...audioConfig.sfx, ...val.audio.sfx };
+  }
+});
+
+// Load custom mazes from Firebase
+db.ref('custom_mazes').on('value', (snap) => {
+  const val = snap.val();
+  if (val) {
+    Object.keys(val).forEach(id => {
+      if (val[id] && val[id].grid) {
+        customMazes[id] = val[id].grid;
+      }
+    });
   }
 });
 
@@ -532,7 +562,29 @@ function getMazeIndex() {
   const idx = (level - 1) % activeMazeOrder.length;
   return activeMazeOrder[idx];
 }
-function getMazeColors() { return MAZE_COLORS[getMazeIndex()]; }
+
+function getMazeData() {
+  const id = getMazeIndex();
+  if (id < MAZES.length) {
+    return MAZES[id]; // hardcoded maze
+  }
+  // Custom maze from Firebase
+  if (customMazes[id]) {
+    return customMazes[id];
+  }
+  return MAZES[0]; // fallback
+}
+
+function getMazeColors() {
+  const id = getMazeIndex();
+  if (id < MAZE_COLORS.length) {
+    return MAZE_COLORS[id]; // hardcoded colors
+  }
+  // Custom maze - get color from config
+  const cfg = activeMazeConfigs[id];
+  const colorIdx = cfg && cfg.colorIndex !== undefined ? cfg.colorIndex : 0;
+  return ALL_COLORS[colorIdx] || ALL_COLORS[0];
+}
 
 // Detect tunnel rows dynamically (rows where col 0 is a path)
 function isTunnelRow(y) {
@@ -541,7 +593,7 @@ function isTunnelRow(y) {
 }
 
 function resetMap() {
-  map = MAZES[getMazeIndex()].map(row => [...row]);
+  map = getMazeData().map(row => [...row]);
   dotCount = 0;
   totalDots = 0;
   for (let r = 0; r < ROWS; r++)
